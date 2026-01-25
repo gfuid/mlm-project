@@ -1,10 +1,10 @@
 import React from 'react'
 
-import Hero from '../components/comman/Hero'
+import Hero from '../components/Hero'
 
-import Pricing from '../components/comman/Pricing'
-import Testimonials from '../components/comman/Testimonials'
-import Disclaimer from '../components/comman/Disclaimer'
+import Pricing from '../components/Pricing'
+import Testimonials from '../components/Testimonials'
+import Disclaimer from '../components/Disclaimer'
 
 
 const Home = () => {

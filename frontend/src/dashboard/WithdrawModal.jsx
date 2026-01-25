@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Wallet, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
-import API from '../../api/axios';
+import API from '../api/axios';
 
 const WithdrawModal = ({ isOpen, onClose, balance, fetchUser }) => {
     const [amount, setAmount] = useState('');

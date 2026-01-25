@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import API from '../../api/axios'; //
-import { useAuth } from '../../context/AuthContext'; //
+import API from '../api/axios'; //
+import { useAuth } from '../context/AuthContext'; //
 import { User, ChevronDown, UserPlus, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 

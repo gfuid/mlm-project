@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
-import API from "../../api/axios"; // Hamara naya axios instance
+import API from "../api/axios"; // Hamara naya axios instance
 import { User, Phone, Mail, Lock, UserPlus } from "lucide-react"; // Icons ke liye
 
 const Register = () => {
