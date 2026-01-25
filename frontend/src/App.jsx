@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext'; // 🚩 Pehle context import karein
 import { Toaster } from 'react-hot-toast'; // 🚩 Notifications ke liye
-
+import NotFound from './pages/NotFound'; // 👈 Import karein
 // Components
 import Header from './components/comman/Header';
 import Footer from "./components/comman/Footer";
@@ -19,6 +19,7 @@ import MyTeam from './pages/MyTeam';
 import Membership from './pages/Membership'; // Spelling fix: memberber -> Membership
 import Services from './pages/Services';
 import About from './pages/About';
+import ResetPassword from './pages/ResetPassword';
 
 const App = () => {
   return (
@@ -43,6 +44,8 @@ const App = () => {
               <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
               <Route path="/kyc-update" element={<PrivateRoute><KycForm /></PrivateRoute>} />
               <Route path="/my-team" element={<PrivateRoute><MyTeam /></PrivateRoute>} />
+              <Route path="*" element={<NotFound />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
             </Routes>
           </main>
 
