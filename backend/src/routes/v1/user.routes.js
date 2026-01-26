@@ -3,8 +3,8 @@ const router = express.Router();
 const {
     getMe, getDashboardStats,
     updateKycDetails, getMyTeamList, getTreeData
-} = require('../controllers/user.controller');
-const { protect } = require('../middlewares/auth.middleware');
+} = require('../../controllers/user.controller');
+const { protect } = require('../../middlewares/auth.middleware');
 
 // Public Routes
 

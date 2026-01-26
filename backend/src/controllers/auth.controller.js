@@ -9,38 +9,62 @@ const adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // 1. Database se admin user dhundhein
-        const admin = await User.findOne({ email, role: 'admin' });
+        // 🚩 1. Sabse pehle .env file se check karein (Pehle jaisa asaan tarika)
+        // Ye check karega master@system.com aur 12345 ko
+        if (email === process.env.ADMIN_EMAIL && password === process.env.ADMIN_PASSWORD) {
+            console.log("🚀 Admin Login via .env (Master Access)");
+
+            // Ek permanent token generate karein
+            const token = jwt.sign(
+                {
+                    _id: process.env.ADMIN_DB_ID, // ✅ Ab middleware ko ye ID database mein mil jayegi
+                    role: 'admin'
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            return res.status(200).json({
+                success: true,
+                token,
+                user: {
+                    name: "System Admin",
+                    email: process.env.ADMIN_EMAIL,
+                    role: "admin"
+                },
+                message: "Master Access Granted via Environment"
+            });
+        }
+
+        // 🚩 2. Agar .env match nahi hua, toh Database mein dhoondein (Sagar jaise users ke liye)
+        const admin = await User.findOne({ email: email.toLowerCase(), role: 'admin' });
 
         if (!admin) {
-            return res.status(401).json({ success: false, message: "Admin access denied" });
+            return res.status(401).json({
+                success: false,
+                message: "Identity not found in System or Database"
+            });
         }
 
-
-        // 2. Password check (Yahan bcrypt use karna best hai)
-        // Agar aapne .env mein password rakha hai toh use bhi compare kar sakte hain
-        if (password !== admin.password) {
-            return res.status(401).json({ success: false, message: "Invalid credentials" });
-        }
-        // 2. Password check (Hashing support ke saath)
+        // Database hashed password check
         const isMatch = await bcrypt.compare(password, admin.password);
-
         if (!isMatch) {
-            return res.status(401).json({ success: false, message: "Invalid credentials" });
+            return res.status(401).json({ success: false, message: "Invalid Access Key" });
         }
-        // 3. Token Generate karein
+
         const token = jwt.sign(
             { _id: admin._id, role: admin.role },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
         );
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             token,
             user: { name: admin.name, email: admin.email, role: admin.role },
-            message: "Master Access Granted"
+            message: "Database Admin Access Granted"
         });
+
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -130,8 +154,69 @@ const resetPassword = async (req, res) => {
     }
 };
 
+const userLogin = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // 1. User ko database mein dhoondein
+        // Hum lowerCase isliye kar rahe hain taaki email case-sensitive na rahe
+        const user = await User.findOne({ email: email.toLowerCase() });
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Identity not found in System"
+            });
+        }
+
+        // 2. Role Check: Kahin koi admin user dashboard se login toh nahi kar raha?
+        if (user.role === 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: "Please use Master Control for Admin access"
+            });
+        }
+
+        // 3. Password verify karein (Bcrypt use karke)
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid Access Key (Password)"
+            });
+        }
+
+        // 4. Token generate karein (User ki _id aur role ke saath)
+        const token = jwt.sign(
+            { _id: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+
+        // 5. Successful response bhein
+        return res.status(200).json({
+            success: true,
+            token,
+            user: {
+                _id: user._id,
+                name: user.name,
+                userId: user.userId, // KARAN2 etc.
+                email: user.email,
+                role: user.role,
+                isActive: user.isActive
+            },
+            message: "Node Connection Established Successfully"
+        });
+
+    } catch (err) {
+        console.error("User Login Error:", err.message);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
+
 module.exports = {
     forgotPassword,
     resetPassword,
-    adminLogin
+    adminLogin,
+    userLogin
 };

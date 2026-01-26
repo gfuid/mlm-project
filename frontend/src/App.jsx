@@ -42,7 +42,7 @@ const App = () => {
 
               {/* Protected User Routes */}
               <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
-              <Route path="/kyc-update" element={<PrivateRoute><KycForm /></PrivateRoute>} />
+              <Route path="/user/kyc" element={<PrivateRoute><KycForm /></PrivateRoute>} />
               <Route path="/my-team" element={<PrivateRoute><MyTeam /></PrivateRoute>} />
               <Route path="*" element={<NotFound />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />

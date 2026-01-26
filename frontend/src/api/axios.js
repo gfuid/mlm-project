@@ -6,12 +6,12 @@ const API = axios.create({
 });
 
 // Request Interceptor: Har request ke saath token bhejne ke liye
-API.interceptors.request.use((req) => {
-    const token = localStorage.getItem('token');
+API.interceptors.request.use((config) => {
+    const token = localStorage.getItem("token");
     if (token) {
-        req.headers.Authorization = `Bearer ${token}`;
+        config.headers.Authorization = `Bearer ${token}`;
     }
-    return req;
+    return config;
 });
 
 export default API;

@@ -24,19 +24,25 @@ const Login = () => {
             // ✅ API use karne se headers aur baseURL ka jhanjhat khatam
             const res = await API.post("/auth/login", formData);
 
+            // Login.jsx ke andar change karein
             if (res.data.success) {
-                const userData = res.data.user;
+                const { token, user } = res.data;
 
-                // 🚩 Token aur User data storage mein save karein
-                localStorage.setItem("token", res.data.token);
-                localStorage.setItem("user", JSON.stringify(userData));
+                // 1. Storage update
+                localStorage.setItem("token", token);
+                localStorage.setItem("user", JSON.stringify(user));
 
-                // Global Auth State update karein
-                setUser(userData);
-                toast.success("Login Successful!");
+                // 2. Global state update
+                await setUser(user);
 
-                // Dashbaord par bhein
-                setTimeout(() => navigate("/dashboard"), 100);
+                toast.success(`Welcome back, ${user.name}!`);
+
+                // 3. Chhota sa delay taaki context stable ho jaye
+                setTimeout(() => {
+                    // Agar user admin hai toh admin dashboard, warna user dashboard
+                    const target = user.role === 'admin' ? "/admin" : "/dashboard";
+                    navigate(target);
+                }, 500);
             }
         } catch (err) {
             const errorMsg = err.response?.data?.message || "Invalid Credentials!";

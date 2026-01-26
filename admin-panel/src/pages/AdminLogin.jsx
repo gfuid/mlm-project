@@ -18,7 +18,7 @@ const AdminLogin = () => {
 
         try {
             // 1. Backend API Call
-            const res = await API.post("/auth/login", { email, password });
+            const res = await API.post("/auth/admin-login", { email, password });
 
             // 2. Deep Role Verification (Sirf Admin allowed hai)
             if (res.data.success && res.data.user.role === "admin") {
