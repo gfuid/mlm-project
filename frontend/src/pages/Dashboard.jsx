@@ -48,7 +48,7 @@ const Dashboard = () => {
         return () => clearInterval(interval);
     }, [setUser]);
 
-    // Fetch dashboard summary data
+    // ✅ FIXED: Fetch dashboard data with tree API fallback
     const fetchDashboardData = useCallback(async () => {
         const token = localStorage.getItem("token");
         if (!token || !user) return navigate("/login");
@@ -56,27 +56,91 @@ const Dashboard = () => {
         try {
             setLoading(true);
 
-            const [statsRes, walletRes] = await Promise.all([
+            // 🚩 Fetch all data in parallel
+            const responses = await Promise.allSettled([
                 API.get("/user/dashboard-stats"),
-                API.get("/wallet/my-wallet")
+                API.get("/wallet/my-wallet"),
+                API.get(`/user/tree/${user.userId}`) // ✅ Get team directly from tree
             ]);
 
-            if (statsRes.data?.data) {
-                const d = statsRes.data.data;
-                setStats({
-                    totalTeam: d.totalTeam || d.totalMembers || 0, // 🚩 Ensure correct key
-                    activeTeam: d.activeTeam || d.activeMembers || 0, // 🚩 Ensure correct key
-                    wallet: d.wallet || 0,
-                    rank: d.rank || "Promoter"
+            console.log('📊 All API Responses:', responses);
+
+            // Extract responses
+            const statsRes = responses[0].status === 'fulfilled' ? responses[0].value : null;
+            const walletRes = responses[1].status === 'fulfilled' ? responses[1].value : null;
+            const treeRes = responses[2].status === 'fulfilled' ? responses[2].value : null;
+
+            console.log('Stats API:', statsRes?.data);
+            console.log('Wallet API:', walletRes?.data);
+            console.log('Tree API:', treeRes?.data);
+
+            // ✅ Calculate team from TREE (most reliable)
+            let totalTeam = 0;
+            let activeTeam = 0;
+
+            if (treeRes?.data?.success && treeRes?.data?.data) {
+                const flattenTree = (node, list = []) => {
+                    if (node.children && node.children.length > 0) {
+                        node.children.forEach(child => {
+                            list.push({
+                                userId: child.userId,
+                                name: child.name,
+                                isActive: child.isActive
+                            });
+                            flattenTree(child, list);
+                        });
+                    }
+                    return list;
+                };
+
+                const teamList = flattenTree(treeRes.data.data);
+                totalTeam = teamList.length;
+                activeTeam = teamList.filter(m => m.isActive).length;
+
+                console.log('✅ Team Count from Tree:', {
+                    totalTeam,
+                    activeTeam,
+                    teamList
                 });
+            } else {
+                console.warn('⚠️ Tree API failed, trying stats API...');
+
+                // Fallback to stats API
+                const data = statsRes?.data?.data;
+                if (data) {
+                    totalTeam = data.totalTeam || data.totalMembers || data.teamCount || 0;
+                    activeTeam = data.activeTeam || data.activeMembers || 0;
+                }
             }
 
-            if (walletRes.data?.success) {
-                setStats(prev => ({ ...prev, wallet: walletRes.data.balance }));
+            // ✅ Get rank
+            const rank = statsRes?.data?.data?.rank
+                || statsRes?.data?.data?.level
+                || user?.rank
+                || "Promoter";
+
+            // ✅ Get wallet balance
+            let wallet = 0;
+            if (walletRes?.data?.success) {
+                wallet = walletRes.data.balance || walletRes.data.data?.balance || 0;
+            } else if (statsRes?.data?.data?.wallet) {
+                wallet = statsRes.data.data.wallet;
             }
+
+            // ✅ Update state
+            setStats({
+                totalTeam,
+                activeTeam,
+                rank,
+                wallet
+            });
+
+            console.log('✅ Final Stats:', { totalTeam, activeTeam, rank, wallet });
 
         } catch (err) {
             console.error('❌ Dashboard data fetch error:', err);
+            console.error('❌ Error details:', err.response?.data);
+
             if (err.response?.status !== 403) {
                 toast.error('Failed to load dashboard data');
             }
@@ -264,10 +328,7 @@ const Dashboard = () => {
                         to="/my-team"
                         className="group relative bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-3xl p-8 text-white hover:scale-105 transition-all duration-500 shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 overflow-hidden animate-in slide-in-from-left duration-700"
                     >
-                        {/* Animated Background */}
                         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
-                        {/* Glow Effect */}
                         <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
 
                         <div className="relative">

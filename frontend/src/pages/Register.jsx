@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import API from "../api/axios";
-// Eye aur EyeOff icons add kiye hain
-import { User, Phone, Mail, Lock, UserPlus, Eye, EyeOff } from "lucide-react";
+import { User, Phone, Mail, Lock, UserPlus, Eye, EyeOff, FileText, AlertCircle } from "lucide-react";
 
 const Register = () => {
     const location = useLocation();
@@ -18,8 +17,9 @@ const Register = () => {
 
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
-    // 👁️ Password visibility toggle karne ke liye state
     const [showPassword, setShowPassword] = useState(false);
+    // ✅ Terms acceptance state
+    const [termsAccepted, setTermsAccepted] = useState(false);
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
@@ -30,10 +30,25 @@ const Register = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
+
+        // ✅ Check if terms are accepted
+        if (!termsAccepted) {
+            setError("You must accept Terms & Conditions to continue");
+            return;
+        }
+
         setLoading(true);
 
         try {
-            const res = await API.post("/auth/register", formData);
+            // ✅ Send terms acceptance to backend
+            const registrationData = {
+                ...formData,
+                termsAccepted: true,
+                termsAcceptedAt: new Date().toISOString()
+            };
+
+            const res = await API.post("/auth/register", registrationData);
+
             if (res.data.success) {
                 alert(`Registration Successful! Your User ID is: ${res.data.userId}`);
                 navigate("/login");
@@ -65,8 +80,9 @@ const Register = () => {
                 </div>
 
                 {error && (
-                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold mb-6 border border-red-100 flex items-center gap-2 animate-bounce">
-                        <span>⚠️</span> {error}
+                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold mb-6 border border-red-100 flex items-center gap-2">
+                        <AlertCircle size={16} />
+                        {error}
                     </div>
                 )}
 
@@ -99,7 +115,7 @@ const Register = () => {
                         </div>
                     </div>
 
-                    {/* Mobile & Email Row (Responsive) */}
+                    {/* Mobile & Email Row */}
                     <div className="grid grid-cols-1 gap-5">
                         {/* Mobile */}
                         <div className="group">
@@ -130,7 +146,7 @@ const Register = () => {
                         </div>
                     </div>
 
-                    {/* Password Input with Eye 👁️ */}
+                    {/* Password Input with Eye */}
                     <div className="group">
                         <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest italic">Create Access Key</label>
                         <div className="relative mt-1">
@@ -142,7 +158,6 @@ const Register = () => {
                                 placeholder="Password"
                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                             />
-                            {/* Toggle Button */}
                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
@@ -153,17 +168,68 @@ const Register = () => {
                         </div>
                     </div>
 
+                    {/* ✅ TERMS & CONDITIONS CHECKBOX - MANDATORY */}
+                    <div className={`border-2 rounded-2xl p-4 transition-all ${termsAccepted
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-orange-50 border-orange-200'
+                        }`}>
+                        <label className="flex items-start gap-3 cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={termsAccepted}
+                                onChange={(e) => setTermsAccepted(e.target.checked)}
+                                className="w-5 h-5 mt-0.5 accent-orange-600 cursor-pointer flex-shrink-0"
+                            />
+                            <div className="flex-1">
+                                <p className="text-xs font-bold text-slate-700 leading-relaxed">
+                                    I have read and accept the{' '}
+                                    <Link
+                                        to="/terms"
+                                        target="_blank"
+                                        className="text-orange-600 font-black underline hover:text-orange-700 inline-flex items-center gap-1"
+                                    >
+                                        Terms & Conditions
+                                        <FileText size={12} />
+                                    </Link>
+                                    {' '}including the <span className="font-black text-red-600">NO REFUND POLICY</span> and accept full responsibility for my decisions.
+                                </p>
+                                {!termsAccepted && (
+                                    <p className="text-[10px] font-black text-orange-600 uppercase mt-2 flex items-center gap-1">
+                                        <AlertCircle size={12} />
+                                        Mandatory Requirement
+                                    </p>
+                                )}
+                            </div>
+                        </label>
+                    </div>
+
+                    {/* Security Badge */}
                     <p className="text-[9px] text-green-600 font-black uppercase flex items-center justify-center gap-2 bg-green-50 py-2 rounded-xl border border-green-100 italic">
                         <span>🛡️</span> Secure 256-Bit Node Encryption
                     </p>
 
+                    {/* Submit Button */}
                     <button
-                        disabled={loading}
-                        className="w-full bg-[#0F172A] text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-black transition-all shadow-xl shadow-slate-900/20 flex justify-center items-center gap-3 active:scale-95 disabled:opacity-70 italic"
+                        type="submit"
+                        disabled={loading || !termsAccepted}
+                        className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] transition-all shadow-xl flex justify-center items-center gap-3 active:scale-95 italic ${loading || !termsAccepted
+                                ? 'bg-slate-400 text-slate-600 cursor-not-allowed opacity-70'
+                                : 'bg-[#0F172A] text-white hover:bg-black shadow-slate-900/20'
+                            }`}
                     >
                         {loading ? (
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        ) : "Complete Free Registration"}
+                            <>
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                Processing...
+                            </>
+                        ) : !termsAccepted ? (
+                            <>
+                                <AlertCircle size={18} />
+                                Accept Terms to Continue
+                            </>
+                        ) : (
+                            "Complete Free Registration"
+                        )}
                     </button>
                 </form>
 

@@ -22,6 +22,9 @@ import Services from './pages/Services';
 import About from './pages/About';
 import NotFound from './pages/NotFound';
 import Levels from './pages/Levels';
+import TermsAndConditions from './pages/TermsAndConditions';
+
+
 
 const App = () => {
   return (
@@ -52,6 +55,8 @@ const App = () => {
               <Route path="/about" element={<About />} />
               <Route path="/services" element={<Services />} />
               <Route path="/membership" element={<Membership />} />
+              <Route path="/terms" element={<TermsAndConditions />} />
+
 
               {/* Auth Routes */}
               <Route path="/login" element={<Login />} />
