@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, Loader2 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
-import API from '../api/axios'; // 🚩 Centralized API instance import karein
+import API from '../api/axios';
 import toast from 'react-hot-toast';
 
 const Login = () => {
@@ -21,30 +21,33 @@ const Login = () => {
         setLoading(true);
 
         try {
-            // ✅ API use karne se headers aur baseURL ka jhanjhat khatam
             const res = await API.post("/auth/login", formData);
 
-            // Login.jsx ke andar change karein
             if (res.data.success) {
-                const user = res.data.user;
-                const token = user.token; // 👈 YAHAN SE LO
-                // 1. Storage update
+                // ✅ CORRECT: Token is at TOP LEVEL, not inside user
+                const token = res.data.token;  // 👈 YAHAN SE TOKEN LO
+                const user = res.data.user;    // 👈 User object alag hai
+
+                console.log('🔑 Token received:', token);
+                console.log('👤 User data:', user);
+
+                // 1. Save to localStorage
                 localStorage.setItem("token", token);
                 localStorage.setItem("user", JSON.stringify(user));
 
-                // 2. Global state update
-                await setUser(user);
+                // 2. Update global state
+                setUser(user);
 
                 toast.success(`Welcome back, ${user.name}!`);
 
-                // 3. Chhota sa delay taaki context stable ho jaye
+                // 3. Navigate based on role
                 setTimeout(() => {
-                    // Agar user admin hai toh admin dashboard, warna user dashboard
                     const target = user.role === 'admin' ? "/admin" : "/dashboard";
-                    navigate(target);
+                    navigate(target, { replace: true });
                 }, 500);
             }
         } catch (err) {
+            console.error('❌ Login error:', err);
             const errorMsg = err.response?.data?.message || "Invalid Credentials!";
             toast.error(errorMsg);
         } finally {
@@ -86,7 +89,7 @@ const Login = () => {
                     <div>
                         <div className="flex justify-between items-center mb-2">
                             <label className="text-[9px] font-black uppercase tracking-widest text-gray-400 ml-2 italic">Access Key</label>
-                            <Link to="/forgot-password" size="10px" className="font-black uppercase text-orange-600 hover:text-orange-700 tracking-tighter text-[10px] no-underline">
+                            <Link to="/forgot-password" className="font-black uppercase text-orange-600 hover:text-orange-700 tracking-tighter text-[10px] no-underline">
                                 Recovery?
                             </Link>
                         </div>

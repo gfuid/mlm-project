@@ -8,6 +8,9 @@ const User = require('../models/User.model');
 //const commissionService = require('../services/commission.service');
 const { getNextUserId } = require("../services/counter.service");
 const { findUpline } = require("../services/matrix.service");
+const { handleMemberActivation, getUserMLMStats } = require('../services/mlm.service');
+const Wallet = require('../models/Wallet.model');
+
 // 1. Generate Token
 
 
@@ -124,63 +127,10 @@ const registerUser = async (req, res) => {
 
 
 // 4. Get My Team
-const getMyTeam = async (req, res) => {
-    try {
-        const loggedInUserId = req.user.userId;
 
-        const teamMembers = await User.find({
-            sponsorId: loggedInUserId
-        })
-            .select('userId name mobile createdAt isActive role rank')
-            .sort({ createdAt: -1 });
-
-        res.status(200).json({
-            success: true,
-            count: teamMembers.length,
-            data: teamMembers
-        });
-    } catch (error) {
-        console.error("❌ Team Fetch Error:", error.message);
-        res.status(500).json({ success: false, error: error.message });
-    }
-};
 
 // 5. Dashboard Stats (✅ FIXED: Added Email & Mobile)
-const getDashboardStats = async (req, res) => {
-    try {
-        const user = await User.findOne({ userId: req.user.userId });
-        if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
-        }
-        // Count Direct Team
-        const directTeamCount = await User.countDocuments({
-            sponsorId: user.userId
-        });
-        const lastRequest = await Withdrawal.findOne({ userId: user.userId })
-        res.status(200).json({
-            success: true,
-            data: {
-                userId: user.userId,
-                name: user.name,
-                rank: user.rank,
-                wallet: user.wallet?.balance || 0,
-                totalTeam: directTeamCount,
 
-                // 👇 THESE FIELDS WERE MISSING BEFORE 👇
-                email: user.email,
-                mobile: user.mobile,
-                bankDetails: user.bankDetails,
-                isActive: user.isActive,
-                createdAt: user.createdAt,
-                lastWithdrawStatus: lastRequest ? lastRequest.status : null,
-                lastWithdrawAmount: lastRequest ? lastRequest.amount : 0
-            }
-        });
-    } catch (error) {
-        console.error("❌ Error:", error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
 
 // 6. Full Tree Logic
 const getFullTree = async (req, res) => {
@@ -337,8 +287,182 @@ const getTreeData = async (req, res) => {
 
 // module.exports mein 'getMyTeamList' add karna mat bhulna
 
+
+
+
+
+// 📊 Get Dashboard Stats (WITH MLM DATA)
+
+
+
+const getDashboardStats = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const user = await User.findById(userId)
+            .populate('directReferrals', 'userId name isActive');
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Get MLM stats
+        const mlmStats = await getUserMLMStats(userId);
+
+        // Get wallet balance
+        let wallet = await Wallet.findOne({ userId: userId });
+        const walletBalance = wallet ? wallet.balance : 0;
+
+        res.json({
+            success: true,
+            data: {
+                // Basic Info
+                _id: user._id,
+                userId: user.userId,
+                name: user.name,
+                email: user.email,
+                mobile: user.mobile,
+                isActive: user.isActive,
+                createdAt: user.createdAt,
+
+                // MLM Stats
+                rank: user.rank,
+                totalTeam: user.totalTeam,
+                activeTeam: user.activeTeam,
+
+                // Direct Referrals
+                activeDirectCount: user.activeDirectCount,
+                level1Complete: user.level1Complete,
+                directReferrals: user.directReferrals,
+
+                // Income
+                totalEarnings: user.totalEarnings,
+                walletBalance: walletBalance,
+
+                // Bank Details
+                bankDetails: user.bankDetails,
+
+                // MLM Details
+                mlm: mlmStats
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Dashboard stats error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// 🎖️ Get My Rank & Progress
+const getMyRankProgress = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const mlmStats = await getUserMLMStats(userId);
+
+        if (!mlmStats) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: mlmStats
+        });
+
+    } catch (error) {
+        console.error('❌ Rank progress error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+
+
+// 👥 Get My Team (All Levels)
+const getMyTeam = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Get direct referrals
+        const directReferrals = await User.find({
+            referredBy: userId
+        }).select('userId name email isActive totalTeam activeDirectCount createdAt');
+
+        res.json({
+            success: true,
+            data: {
+                totalTeam: user.totalTeam,
+                activeTeam: user.activeTeam,
+                directMembers: directReferrals.length,
+                members: directReferrals
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Get team error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// 🎁 Get My Rewards
+const getMyRewards = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                currentRank: user.rank,
+                totalRewards: user.rewards.length,
+                rewards: user.rewards,
+                rankHistory: user.rankHistory
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Get rewards error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+
+
 // ✅ Export All Functions Correctly
 module.exports = {
+    getMyRewards,
+    getMyRankProgress,
     registerUser,
     getMyTeam,
     getDashboardStats,

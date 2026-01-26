@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { X, ShieldCheck, QrCode, Download, Mail, Phone, MapPin, Calendar, Award, Crown, Loader2 } from 'lucide-react';
+import { X, ShieldCheck, QrCode, Download, Loader2, Crown, Award } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 const IdCardModal = ({ isOpen, onClose, user }) => {
@@ -8,127 +8,339 @@ const IdCardModal = ({ isOpen, onClose, user }) => {
 
     if (!isOpen || !user) return null;
 
-    // 🚩 Helper to safely get nested details
-    const mobile = user.mobile || "Not Provided";
-    const rank = user.rank || "Promoter";
-    // Address nested object se nikalna
-    const address = user.bankDetails?.address || "Address Not Set";
-    const joinedDate = new Date(user.createdAt).toLocaleDateString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric'
+    // ✅ Extract all user details with multiple fallbacks
+    const mobile = user.mobile || user.phone || user.contactNumber || "Not Provided";
+    const rank = user.rank || user.level || user.membershipLevel || "Promoter";
+    const email = user.email || "Not Provided";
+    const address = user.bankDetails?.address || user.address || user.location || "Address Not Set";
+    const joiningDate = user.createdAt
+        ? new Date(user.createdAt).toLocaleDateString('en-IN', {
+            day: '2-digit', month: 'short', year: 'numeric'
+        })
+        : user.joinedDate || "N/A";
+
+    console.log('🔍 User Data:', {
+        sponsorId: user.sponsorId,
+        referredBy: user.referredBy,
+        sponsor: user.sponsor,
+        parentId: user.parentId,
+        fullUser: user
     });
 
     const handleDownload = async () => {
-        try {
-            setIsDownloading(true);
-            const cardElement = cardRef.current;
-            if (!cardElement) return;
+        setIsDownloading(true);
 
-            // Give the UI a moment to settle
+        try {
+            const cardElement = cardRef.current;
+            if (!cardElement) {
+                throw new Error('Card element not found');
+            }
+
+            // Wait for fonts and images to load
+            await document.fonts.ready;
             await new Promise(resolve => setTimeout(resolve, 500));
 
+            // Create canvas with explicit options
             const canvas = await html2canvas(cardElement, {
-                backgroundColor: "#ffffff",
-                scale: 3,
+                backgroundColor: '#ffffff',
+                scale: 2,
                 useCORS: true,
-                // 🚩 This ignores the unsupported oklch functions 
-                // if they are still present in other parts of the page
-                ignoreElements: (element) => element.classList.contains('unsupported-style'),
-                onclone: (clonedDoc) => {
-                    // Manually force standard colors in the clone if needed
-                    const clonedCard = clonedDoc.getElementById('id-card-content');
-                    if (clonedCard) clonedCard.style.color = '#000000';
-                }
+                allowTaint: false,
+                logging: true,
+                width: cardElement.offsetWidth,
+                height: cardElement.offsetHeight,
+                windowWidth: cardElement.scrollWidth,
+                windowHeight: cardElement.scrollHeight,
             });
 
-            const image = canvas.toDataURL('image/png', 1.0);
-            const link = document.createElement('a');
-            link.href = image;
-            link.download = `ID-Card-${user.userId}.png`;
-            link.click();
+            // Convert to blob and download
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    throw new Error('Failed to create image');
+                }
 
-            setIsDownloading(false);
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `Karan-Ads-ID-${user.userId || Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                setIsDownloading(false);
+            }, 'image/png', 1.0);
+
         } catch (error) {
-            console.error('Download failed:', error);
-            alert('Download failed due to CSS incompatibility. Please try again.');
+            console.error('❌ Download Error:', error);
+            alert(`Download failed: ${error.message}. Please try again or take a screenshot.`);
             setIsDownloading(false);
         }
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 overflow-y-auto">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
             <div className="relative max-h-full py-10">
-                <button onClick={onClose} className="absolute top-2 right-0 bg-white/10 hover:bg-red-600 text-white p-2 rounded-full transition-all z-[110]">
+                {/* Close Button */}
+                <button
+                    onClick={onClose}
+                    className="absolute -top-2 -right-2 text-white p-3 rounded-full transition-all z-[110] shadow-lg"
+                    style={{ backgroundColor: '#dc2626' }}
+                >
                     <X size={20} />
                 </button>
 
-                {/* ID Card */}
-                <div ref={cardRef} className="bg-white rounded-[2rem] overflow-hidden shadow-2xl w-[340px] border-4 border-slate-200">
-                    <div className="bg-gradient-to-r from-orange-600 via-orange-500 to-pink-600 h-28 p-5 flex justify-between items-start relative">
+                {/* ID CARD */}
+                <div
+                    ref={cardRef}
+                    className="overflow-hidden shadow-2xl"
+                    style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '24px',
+                        width: '360px',
+                        border: '4px solid #e5e7eb',
+                        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+                    }}
+                >
+                    {/* Header */}
+                    <div
+                        className="p-5 flex justify-between items-start relative"
+                        style={{
+                            height: '128px',
+                            background: 'linear-gradient(to right, #ea580c, #f97316, #ec4899)'
+                        }}
+                    >
                         <div className="flex items-center gap-2">
-                            <div className="bg-white text-orange-600 w-10 h-10 flex items-center justify-center rounded-xl font-black shadow-xl">
-                                <Crown size={20} />
+                            <div style={{
+                                backgroundColor: '#ffffff',
+                                color: '#ea580c',
+                                width: '48px',
+                                height: '48px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '12px',
+                                fontWeight: '900',
+                                boxShadow: '0 10px 15px rgba(0,0,0,0.1)'
+                            }}>
+                                <Crown size={24} />
                             </div>
                             <div>
-                                <span className="text-white font-black text-base italic">KARAN ADS</span>
-                                <p className="text-white/80 text-[7px] font-bold uppercase tracking-widest">Enterprise Member</p>
+                                <div style={{
+                                    color: '#ffffff',
+                                    fontWeight: '900',
+                                    fontSize: '18px',
+                                    fontStyle: 'italic'
+                                }}>
+                                    KARAN ADS
+                                </div>
+                                <div style={{
+                                    color: 'rgba(255,255,255,0.9)',
+                                    fontSize: '10px',
+                                    fontWeight: '700',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.1em'
+                                }}>
+                                    Enterprise Member
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="px-6 pb-6 flex flex-col items-center -mt-10 relative z-20">
-                        <div className="w-24 h-24 bg-white rounded-2xl shadow-xl flex items-center justify-center border-4 border-white overflow-hidden mb-3">
-                            <div className="w-full h-full bg-slate-100 flex items-center justify-center">
-                                <ShieldCheck size={48} className="text-orange-600" />
+                    {/* Profile Section */}
+                    <div className="px-6 pb-6 flex flex-col items-center relative" style={{ marginTop: '-48px', zIndex: 20 }}>
+                        {/* Avatar */}
+                        <div style={{
+                            width: '96px',
+                            height: '96px',
+                            backgroundColor: '#ffffff',
+                            borderRadius: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: '4px solid #ffffff',
+                            overflow: 'hidden',
+                            marginBottom: '12px',
+                            boxShadow: '0 10px 25px rgba(0,0,0,0.15)'
+                        }}>
+                            <div style={{
+                                width: '100%',
+                                height: '100%',
+                                backgroundColor: '#f3f4f6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}>
+                                <ShieldCheck size={48} color="#ea580c" />
                             </div>
                         </div>
 
-                        <h2 className="text-xl font-black text-slate-800 uppercase italic">{user.name}</h2>
+                        {/* Name */}
+                        <h2 style={{
+                            fontSize: '24px',
+                            fontWeight: '900',
+                            color: '#1f2937',
+                            textTransform: 'uppercase',
+                            fontStyle: 'italic',
+                            textAlign: 'center',
+                            marginBottom: '8px'
+                        }}>
+                            {user.name}
+                        </h2>
 
-                        <div className="flex items-center gap-1.5 mt-1 mb-4">
-                            <Award size={12} className="text-orange-600" />
-                            <p className="text-orange-600 font-black text-[10px] tracking-widest uppercase italic">{rank}</p>
+                        {/* Rank Badge */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            backgroundColor: '#fff7ed',
+                            padding: '6px 16px',
+                            borderRadius: '20px',
+                            marginBottom: '16px'
+                        }}>
+                            <Award size={14} color="#ea580c" />
+                            <span style={{
+                                color: '#ea580c',
+                                fontWeight: '900',
+                                fontSize: '12px',
+                                letterSpacing: '0.1em',
+                                textTransform: 'uppercase',
+                                fontStyle: 'italic'
+                            }}>
+                                {rank}
+                            </span>
                         </div>
 
-                        {/* 📊 FETCHED DETAILS GRID */}
-                        <div className="w-full space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4 text-[10px]">
-                            <div className="flex justify-between">
-                                <span className="font-bold text-slate-400 uppercase">ID No:</span>
-                                <span className="font-black text-slate-800">{user.userId}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="font-bold text-slate-400 uppercase">Mobile:</span>
-                                <span className="font-black text-slate-800">{mobile}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="font-bold text-slate-400 uppercase">Join Date:</span>
-                                <span className="font-black text-slate-800">{joinedDate}</span>
-                            </div>
-                            {/* Address fetch logic */}
-                            <div className="flex justify-between gap-4 border-t border-slate-200 pt-2">
-                                <span className="font-bold text-slate-400 uppercase">Address:</span>
-                                <span className="font-black text-slate-800 text-right leading-tight max-w-[140px]">{address}</span>
-                            </div>
+                        {/* Details Grid */}
+                        <div style={{
+                            width: '100%',
+                            backgroundColor: '#f9fafb',
+                            padding: '16px',
+                            borderRadius: '12px',
+                            border: '1px solid #e5e7eb',
+                            marginBottom: '16px',
+                            fontSize: '12px'
+                        }}>
+                            <DetailRow label="ID NO:" value={user.userId} />
+                            <DetailRow label="EMAIL:" value={email} isEmail />
+                            <DetailRow label="MOBILE:" value={mobile} />
+                            <DetailRow label="JOINED:" value={joiningDate} />
+                            <DetailRow label="ADDRESS:" value={address} multiline />
                         </div>
 
-                        <div className="w-full bg-white p-3 rounded-xl flex items-center gap-3 border border-orange-100">
-                            <QrCode size={36} className="text-orange-600" />
-                            <p className="text-[7px] text-slate-500 font-bold uppercase italic leading-tight">
-                                This ID is digitally encrypted and verified by the Karan Ads Master Node system.
+                        {/* QR Section */}
+                        <div style={{
+                            width: '100%',
+                            backgroundColor: '#ffffff',
+                            padding: '12px',
+                            borderRadius: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            border: '2px solid #fed7aa'
+                        }}>
+                            <QrCode size={40} color="#ea580c" />
+                            <p style={{
+                                fontSize: '11px',
+                                color: '#4b5563',
+                                fontWeight: '700',
+                                textTransform: 'uppercase',
+                                fontStyle: 'italic',
+                                lineHeight: '1.3',
+                                margin: 0
+                            }}>
+                                This ID is digitally encrypted and verified by Karan Ads Master Node.
                             </p>
                         </div>
+
+                        {/* Footer */}
+                        <p style={{
+                            textAlign: 'center',
+                            color: '#9ca3af',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            marginTop: '16px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em'
+                        }}>
+                            Karan Ads Enterprise © 2026
+                        </p>
                     </div>
                 </div>
 
+                {/* Download Button */}
                 <button
                     onClick={handleDownload}
                     disabled={isDownloading}
-                    className={`w-full mt-4 flex items-center justify-center gap-3 py-4 rounded-2xl font-black uppercase text-[10px] transition-all active:scale-95 ${isDownloading ? 'bg-slate-700 text-slate-400' : 'bg-gradient-to-r from-orange-600 to-pink-600 text-white'}`}
+                    style={{
+                        width: '100%',
+                        marginTop: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
+                        padding: '16px 24px',
+                        borderRadius: '16px',
+                        fontWeight: '900',
+                        textTransform: 'uppercase',
+                        fontSize: '14px',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                        backgroundColor: isDownloading ? '#4b5563' : '#ea580c',
+                        color: '#ffffff',
+                        border: 'none',
+                        cursor: isDownloading ? 'not-allowed' : 'pointer'
+                    }}
                 >
-                    {isDownloading ? <><Loader2 size={16} className="animate-spin" /> Fetching...</> : <><Download size={16} /> Download Card</>}
+                    {isDownloading ? (
+                        <>
+                            <Loader2 size={18} className="animate-spin" />
+                            Generating Image...
+                        </>
+                    ) : (
+                        <>
+                            <Download size={18} />
+                            Download ID Card
+                        </>
+                    )}
                 </button>
             </div>
         </div>
     );
 };
+
+// Helper component for detail rows
+const DetailRow = ({ label, value, isEmail, highlight, multiline }) => (
+    <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: multiline ? '8px' : '16px',
+        borderBottom: '1px solid #e5e7eb',
+        paddingBottom: '8px',
+        marginBottom: '8px',
+        alignItems: multiline ? 'flex-start' : 'center'
+    }}>
+        <span style={{
+            fontWeight: '700',
+            color: '#6b7280',
+            textTransform: 'uppercase',
+            fontSize: '11px',
+            flexShrink: 0
+        }}>
+            {label}
+        </span>
+        <span style={{
+            fontWeight: '900',
+            color: highlight ? '#ea580c' : '#1f2937',
+            textAlign: 'right',
+            fontSize: isEmail ? '10px' : '12px',
+            maxWidth: multiline ? '200px' : '180px',
+            wordBreak: isEmail || multiline ? 'break-all' : 'normal',
+            lineHeight: multiline ? '1.3' : 'normal'
+        }}>
+            {value}
+        </span>
+    </div>
+);
 
 export default IdCardModal;
