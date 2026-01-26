@@ -2,22 +2,51 @@
 const express = require('express');
 const router = express.Router();
 
-// 🚩 Sabse Pehle: Saare functions ko controller se extract karein
-// Check karein ki koi naam miss toh nahi ho raha
-const {
-    getAllWithdrawals, verifyUserKyc, toggleUserStatus, getSystemTree, getAllUsers, getPendingWithdrawals, updateWithdrawalStatus, getFullStats, updateAdStatus
-} = require('../../controllers/admin.controller');
-
+// Import middleware
 const { protect, admin } = require('../../middlewares/auth.middleware');
 
-// 🚩 Line 17 ke paas check karein (Handler function undefined nahi hona chahiye)
+// Import all controller functions
+const {
+    getFullStats,
+    getAllUsers,
+    getSystemTree,
+    toggleUserStatus,
+    verifyUserKyc,
+    updateWithdrawalStatus,
+    getAllWithdrawals,
+    getPendingWithdrawals
+} = require('../../controllers/admin.controller');
+
+// ✅ CRITICAL: Check all function imports are defined
+console.log('Admin Routes - Checking imports:', {
+    getFullStats: typeof getFullStats,
+    getAllUsers: typeof getAllUsers,
+    getSystemTree: typeof getSystemTree,
+    toggleUserStatus: typeof toggleUserStatus,
+    verifyUserKyc: typeof verifyUserKyc,
+    updateWithdrawalStatus: typeof updateWithdrawalStatus
+});
+
+// ==========================================
+// ADMIN ROUTES (All protected with admin middleware)
+// ==========================================
+
+// Dashboard Stats
 router.get('/full-stats', protect, admin, getFullStats);
+
+// Member Management
 router.get('/users', protect, admin, getAllUsers);
+
+// Genealogy Tree
 router.get('/tree/:userId', protect, admin, getSystemTree);
 
-// 🚩 Inke naam check karein: controller mein jo export hai wahi yahan hona chahiye
+// User Actions
 router.patch('/toggle-status/:userId', protect, admin, toggleUserStatus);
 router.patch('/verify-kyc/:userId', protect, admin, verifyUserKyc);
-router.patch('/withdrawal/status', protect, admin, updateWithdrawalStatus);
+
+// Withdrawal Management
+router.post('/update-withdrawal', protect, admin, updateWithdrawalStatus);
+router.get('/withdrawals', protect, admin, getAllWithdrawals);
+router.get('/withdrawals/pending', protect, admin, getPendingWithdrawals);
 
 module.exports = router;

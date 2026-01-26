@@ -9,8 +9,8 @@ const ProtectedRoute = ({ children }) => {
         const verifyAuth = async () => {
             console.log('🔒 Admin ProtectedRoute - Verifying authentication...');
 
-            // ✅ WAIT 200ms for storage to settle
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // ✅ WAIT 300ms for storage to settle (increased from 200ms)
+            await new Promise(resolve => setTimeout(resolve, 300));
 
             try {
                 const token = localStorage.getItem("token");
@@ -18,6 +18,7 @@ const ProtectedRoute = ({ children }) => {
 
                 console.log('Token exists:', !!token);
                 console.log('UserInfo exists:', !!userInfoStr);
+                console.log('Token preview:', token?.substring(0, 30) + '...');
 
                 if (!token || !userInfoStr) {
                     console.log('❌ Missing credentials - redirecting to login');
@@ -27,12 +28,24 @@ const ProtectedRoute = ({ children }) => {
                 }
 
                 // Parse user info
-                const userInfo = JSON.parse(userInfoStr);
-                console.log('Parsed user role:', userInfo?.role);
+                let userInfo;
+                try {
+                    userInfo = JSON.parse(userInfoStr);
+                } catch (parseError) {
+                    console.error('❌ Failed to parse userInfo:', parseError);
+                    localStorage.clear();
+                    setIsAuthenticated(false);
+                    setIsVerifying(false);
+                    return;
+                }
+
+                console.log('Parsed user:', userInfo);
+                console.log('User role:', userInfo?.role);
 
                 // Verify admin role
                 if (userInfo?.role !== 'admin') {
                     console.log('❌ Not an admin - redirecting to login');
+                    localStorage.clear();
                     setIsAuthenticated(false);
                     setIsVerifying(false);
                     return;
@@ -43,6 +56,7 @@ const ProtectedRoute = ({ children }) => {
 
             } catch (error) {
                 console.error('❌ Auth verification error:', error);
+                localStorage.clear();
                 setIsAuthenticated(false);
             } finally {
                 setIsVerifying(false);
@@ -58,8 +72,8 @@ const ProtectedRoute = ({ children }) => {
             <div className="min-h-screen bg-slate-950 flex items-center justify-center">
                 <div className="text-center">
                     <div className="w-16 h-16 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-white font-black uppercase text-sm tracking-wider">
-                        Verifying Credentials...
+                    <p className="text-white font-black uppercase text-sm tracking-wider animate-pulse">
+                        Verifying Master Credentials...
                     </p>
                 </div>
             </div>
