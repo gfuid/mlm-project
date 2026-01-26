@@ -158,15 +158,27 @@ const getFullStats = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
     try {
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+
+        const total = await User.countDocuments({ role: 'user' });
+
         const users = await User.find({ role: 'user' })
-            .select('name userId email mobile bankDetails isActive createdAt') // ✅ Manual selection
+            .select('name userId email mobile bankDetails isActive createdAt')
+            .skip(skip)
+            .limit(limit)
             .sort({ createdAt: -1 });
 
-        res.status(200).json({ success: true, data: users });
+        res.status(200).json({
+            success: true,
+            data: users,
+            page,
+            pages: Math.ceil(total / limit),
+            total
+        });
     } catch (err) {
-        // 🚨 Ye console.log ab terminal mein error nahi dega
-        console.error("Admin Users Fetch Error:", err.message);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 

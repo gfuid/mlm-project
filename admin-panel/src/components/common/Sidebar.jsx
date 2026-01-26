@@ -21,7 +21,7 @@ const Sidebar = () => {
             badge: stats.pendingWithdrawalsCount // Live badge count
         },
         { name: 'Network Tree', icon: <Network size={18} />, path: '/admin/tree/KARAN1001' },
-        { name: 'Add Member', icon: <UserPlus size={18} />, path: '/admin/add-member' },
+
     ];
 
     const handleLogout = () => {
@@ -49,8 +49,8 @@ const Sidebar = () => {
                         key={item.name}
                         to={item.path}
                         className={`flex items-center justify-between p-4 rounded-2xl transition-all group ${location.pathname === item.path
-                                ? 'bg-orange-600 text-white shadow-xl shadow-orange-600/20 italic'
-                                : 'text-slate-500 hover:bg-slate-900 hover:text-white font-bold'
+                            ? 'bg-orange-600 text-white shadow-xl shadow-orange-600/20 italic'
+                            : 'text-slate-500 hover:bg-slate-900 hover:text-white font-bold'
                             }`}
                     >
                         <div className="flex items-center gap-4 text-xs uppercase tracking-widest">

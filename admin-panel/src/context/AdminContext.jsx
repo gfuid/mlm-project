@@ -43,7 +43,7 @@ export const AdminProvider = ({ children }) => {
                 setLastUpdated(new Date().toLocaleTimeString());
             }
         } catch (err) {
-            console.error("Master Sync Error:", err);
+
             // Agar token expire ho jaye toh admin ko logout karwa sakte hain
         } finally {
             setLoading(false);

@@ -5,6 +5,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 
+const generateToken = (user) => {
+    return jwt.sign(
+        { _id: user._id, userId: user.userId, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: "30d" }
+    );
+};
+
 const adminLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -28,6 +36,7 @@ const adminLogin = async (req, res) => {
                 success: true,
                 token,
                 user: {
+                    _id: process.env.ADMIN_DB_ID,
                     name: "System Admin",
                     email: process.env.ADMIN_EMAIL,
                     role: "admin"
@@ -158,10 +167,7 @@ const userLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // 1. User ko database mein dhoondein
-        // Hum lowerCase isliye kar rahe hain taaki email case-sensitive na rahe
         const user = await User.findOne({ email: email.toLowerCase() });
-
         if (!user) {
             return res.status(401).json({
                 success: false,
@@ -169,48 +175,36 @@ const userLogin = async (req, res) => {
             });
         }
 
-        // 2. Role Check: Kahin koi admin user dashboard se login toh nahi kar raha?
-        if (user.role === 'admin') {
-            return res.status(403).json({
-                success: false,
-                message: "Please use Master Control for Admin access"
-            });
-        }
 
-        // 3. Password verify karein (Bcrypt use karke)
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(401).json({
                 success: false,
-                message: "Invalid Access Key (Password)"
+                message: "Invalid Access Key"
             });
         }
 
-        // 4. Token generate karein (User ki _id aur role ke saath)
-        const token = jwt.sign(
-            { _id: user._id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '1d' }
-        );
+        // ✅ SINGLE TOKEN
+        const token = generateToken(user._id);
 
-        // 5. Successful response bhein
         return res.status(200).json({
             success: true,
-            token,
+            token, // ✅ token TOP LEVEL
             user: {
                 _id: user._id,
                 name: user.name,
-                userId: user.userId, // KARAN2 etc.
+                userId: user.userId,
                 email: user.email,
                 role: user.role,
                 isActive: user.isActive
             },
-            message: "Node Connection Established Successfully"
+            message: "Login successful"
         });
 
+
     } catch (err) {
-        console.error("User Login Error:", err.message);
-        res.status(500).json({ success: false, message: "Internal Server Error" });
+        res.status(500).json({ success: false, message: err.message });
     }
 };
 

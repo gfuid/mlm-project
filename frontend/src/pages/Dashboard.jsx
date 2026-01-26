@@ -1,63 +1,41 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
-// Dashboard.jsx ke top imports check karein
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import {
-    Trophy,
-    Lock,
-    CheckCircle,
-    Users,
-    Wallet,
-    User as UserIcon,
-    Download,
-    Copy,
-    Share2,
-    Settings,
-    LogOut // ✅ Ye line dhyan se check karein
+    Users, Wallet, User as UserIcon, Settings, LogOut,
+    CheckCircle, Trophy, ArrowRight, TrendingUp, Zap,
+    Activity, Target, Award, Crown, Star
 } from "lucide-react";
-import ReferralTree from "../dashboard/ReferralTree";
+import { useAuth } from '../context/AuthContext';
+import BillingSection from "../dashboard/BillingSection";
 import WithdrawModal from "../dashboard/WithdrawModal";
 import IdCardModal from "../dashboard/IdCardModal";
-import { Link } from "react-router-dom";
-// Dashboard.jsx ke top par add karein
-import { useAuth } from '../context/AuthContext'; // 👈 Check karein path sahi ho
-import BillingSection from "../dashboard/BillingSection"; //
-import toast from 'react-hot-toast'; // 👈 Ye line top par honi chahiye
-import API from '../api/axios'; // 🚩 API instance import karein
+import toast from 'react-hot-toast';
+import API from '../api/axios';
 
 const Dashboard = () => {
     const navigate = useNavigate();
     const { user, setUser, loading: authLoading } = useAuth();
 
-    const [stats, setStats] = useState({ wallet: 0, totalTeam: 0, rank: "Promoter" });
-    const [teamList, setTeamList] = useState([]);
-    const [recursiveTree, setRecursiveTree] = useState(null);
+    const [stats, setStats] = useState({
+        wallet: 0,
+        totalTeam: 0,
+        activeTeam: 0,
+        rank: "Promoter"
+    });
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState("list");
     const [isIdCardOpen, setIsIdCardOpen] = useState(false);
     const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
 
-    // ✅ 1. WALLET CALCULATION FIX
-    // Agar per active member 500 milne hain, toh hum teamList se active count nikal rahe hain
-
-    const displayWallet = stats.wallet || 0;
-
-    // 🛡️ SECURITY CHECK: Latest status from Database
-    // Dashboard.jsx ke useEffect mein ye badlaav karein
-    // Dashboard.jsx ke useEffect mein ye badlaav karein
+    // Auto-sync activation status
     useEffect(() => {
         const forceSyncActivation = async () => {
             try {
-                // ✅ Bypass browser cache with timestamp
                 const res = await API.get(`/user/dashboard-stats?t=${Date.now()}`);
                 if (res.data.success) {
                     const latestUser = res.data.data;
-
-                    // 🔄 Sync only if data has changed to prevent infinite loops
                     if (JSON.stringify(latestUser) !== localStorage.getItem("user")) {
                         setUser(latestUser);
                         localStorage.setItem("user", JSON.stringify(latestUser));
-                        console.log("🚀 Live Sync: ID is", latestUser.isActive ? "ACTIVE" : "PENDING");
                     }
                 }
             } catch (err) {
@@ -68,392 +46,379 @@ const Dashboard = () => {
         forceSyncActivation();
         const interval = setInterval(forceSyncActivation, 5000);
         return () => clearInterval(interval);
-    }, [setUser]); // Sirf setUser dependency rakhein
+    }, [setUser]);
 
-    // Dashboard.jsx ke andar handleCopyLink ko aise update karein
+    // Fetch dashboard summary data
+    const fetchDashboardData = useCallback(async () => {
+        const token = localStorage.getItem("token");
+        if (!token || !user) return navigate("/login");
+
+        try {
+            setLoading(true);
+
+            const [statsRes, walletRes] = await Promise.all([
+                API.get("/user/dashboard-stats"),
+                API.get("/wallet/my-wallet")
+            ]);
+
+            if (statsRes.data?.data) {
+                const d = statsRes.data.data;
+                setStats({
+                    totalTeam: d.totalTeam || d.totalMembers || 0, // 🚩 Ensure correct key
+                    activeTeam: d.activeTeam || d.activeMembers || 0, // 🚩 Ensure correct key
+                    wallet: d.wallet || 0,
+                    rank: d.rank || "Promoter"
+                });
+            }
+
+            if (walletRes.data?.success) {
+                setStats(prev => ({ ...prev, wallet: walletRes.data.balance }));
+            }
+
+        } catch (err) {
+            console.error('❌ Dashboard data fetch error:', err);
+            if (err.response?.status !== 403) {
+                toast.error('Failed to load dashboard data');
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [navigate, user]);
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, [fetchDashboardData]);
+
     const handleCopyLink = () => {
         if (!user?.isActive) {
             toast.error("Activate your ID to start referring!");
             return;
         }
-        // window.location.origin apne aap http://localhost:5173 utha lega
         const referralUrl = `${window.location.origin}/register?ref=${user.userId}`;
-
         navigator.clipboard.writeText(referralUrl);
         toast.success("Referral Link Copied!");
     };
 
-
-    const levelsData = [
-        { lv: 1, rank: "Promoter", target: 3, income: 1500, reward: "Starter Pack" },
-        { lv: 2, rank: "City Manager", target: 9, income: 3000, reward: "Manager Badge" },
-        { lv: 3, rank: "Distt. Manager", target: 27, income: 9000, reward: "Distt. Manager Medal" },
-        { lv: 4, rank: "State Manager", target: 81, income: 27000, reward: "State Manager Medal" },
-        { lv: 5, rank: "National Head", target: 243, income: 81000, reward: "National Head Medal" },
-        { lv: 6, rank: "Boss Medal", target: 729, income: 243000, reward: "📺 Smart LED TV" },
-        { lv: 7, rank: "Karan Medal", target: 2187, income: 729000, reward: "🛵 Honda Activa" },
-        { lv: 8, rank: "Arjun Medal", target: 6561, income: 2187000, reward: "🏍️ Royal Enfield Bullet" },
-        { lv: 9, rank: "Gold Medal", target: 19684, income: 6561500, reward: "🛡️ Pension Plan (10L Fund)" },
-        { lv: 10, rank: "Hero No. 1", target: 59049, income: 19684500, reward: "🏠🚘 House + Car (50L Fund)" }
-    ];
-
-    const fetchDashboardData = useCallback(async () => {
-        const token = localStorage.getItem("token");
-        if (!token || !user) return navigate("/login");
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-
-        try {
-            setLoading(true);
-            const treeId = user.role === 'admin' ? 'KARAN1001' : user.userId;
-            // Example: fetchDashboardData ke andar
-            const [statsRes, walletRes, treeRes] = await Promise.all([
-                API.get("/user/dashboard-stats"), // 👈 Ab sirf itna likhna hai
-                API.get("/wallet/my-wallet"),
-                API.get(`/admin/tree/${treeId}`)
-            ]);
-
-            if (statsRes.data?.data) setStats(prev => ({ ...prev, ...statsRes.data.data }));
-            if (walletRes.data?.success) setStats(prev => ({ ...prev, wallet: walletRes.data.balance }));
-
-            if (treeRes.data?.success) {
-                const fullData = treeRes.data.data;
-                setRecursiveTree(fullData);
-                const flatten = (node, list = []) => {
-                    node.children?.forEach(child => {
-                        list.push({ userId: child.userId, name: child.name, isActive: child.isActive });
-                        flatten(child, list);
-                    });
-                    return list;
-                };
-                setTeamList(flatten(fullData));
-            }
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
-    }, [navigate, user]);
-
-    useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
-
-
-    console.log("Dashboard user status:", user?.isActive);
-    console.log("Status:", user.isActive);
-    // Dashboard.jsx mein line 113 ke paas jahan status log ho raha hai
-    console.log("Dashboard user status:", user?.isActive);
-
-    // 🚩 CRITICAL FIX: Jab tak user data nahi milta, screen ko render mat hone do
     if (authLoading || !user) {
         return (
-            <div className="h-screen flex items-center justify-center bg-white font-black italic text-orange-600 animate-pulse">
-                RESTORING SECURE SESSION...
+            <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+                <div className="text-center">
+                    <div className="relative">
+                        <div className="w-20 h-20 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto"></div>
+                        <Crown className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-orange-500 animate-pulse" size={32} />
+                    </div>
+                    <p className="font-black text-white mt-6 text-xl uppercase tracking-wider animate-pulse">
+                        Loading Dashboard...
+                    </p>
+                </div>
             </div>
         );
     }
 
-    // Ab iske niche baaki ka return statement aayega
     return (
-        <div className="min-h-screen bg-gray-50 p-4 font-sans">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50/30 to-slate-50 font-sans">
+            {/* Animated Background Pattern */}
+            <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+                <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+                <div className="absolute top-0 -right-4 w-72 h-72 bg-orange-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+                <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
+            </div>
 
-            <header className="bg-white border-b border-gray-100 px-8 py-5 flex justify-between items-center sticky top-0 z-50 shadow-sm">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-600 rounded-xl flex items-center justify-center text-white font-black italic shadow-lg shadow-orange-600/20 text-xl">K</div>
-                    <div>
-                        <h1 className="text-2xl font-black uppercase italic tracking-tighter leading-none">Karan <span className="text-orange-600">Ads</span></h1>
-                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">Enterprise Member Node</p>
+            <div className="max-w-7xl mx-auto p-4 md:p-8">
+                {/* Premium Header */}
+                <header className="bg-white/80 backdrop-blur-xl border border-white/20 px-8 py-6 flex justify-between items-center sticky top-4 z-50 shadow-2xl shadow-slate-900/5 rounded-3xl mb-8 animate-in slide-in-from-top duration-700">
+                    <div className="flex items-center gap-4">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-pink-600 rounded-2xl blur-lg opacity-50 animate-pulse"></div>
+                            <div className="relative w-14 h-14 bg-gradient-to-br from-orange-600 to-orange-500 rounded-2xl flex items-center justify-center text-white font-black shadow-2xl shadow-orange-500/50">
+                                <Crown size={28} className="animate-bounce" style={{ animationDuration: '3s' }} />
+                            </div>
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-black uppercase tracking-tight leading-none bg-gradient-to-r from-slate-900 via-orange-600 to-slate-900 bg-clip-text text-transparent">
+                                Karan Ads
+                            </h1>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
+                                <Star size={10} className="text-orange-500" />
+                                Premium Member Dashboard
+                                <Star size={10} className="text-orange-500" />
+                            </p>
+                        </div>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-6">
-
-                    <div className={`px-4 py-2 rounded-full border text-[9px] font-black uppercase italic flex items-center gap-2 ${user?.isActive ? 'bg-green-50 border-green-100 text-green-600' : 'bg-red-50 border-red-100 text-red-600'
-                        }`}>
-                        {/* Dashboard Header Badge Fix */}
-                        <div className={`px-4 py-2 rounded-full border text-[9px] font-black uppercase italic flex items-center gap-2 transition-all duration-500 ${user?.isActive ? 'bg-green-50 border-green-100 text-green-600 shadow-lg shadow-green-100' : 'bg-red-50 border-red-100 text-red-600'
+                    <div className="flex items-center gap-6">
+                        {/* Status Badge */}
+                        <div className={`relative px-6 py-3 rounded-2xl border-2 text-xs font-black uppercase flex items-center gap-3 transition-all duration-500 ${user?.isActive
+                            ? 'bg-gradient-to-r from-green-500 to-emerald-500 border-green-400/50 text-white shadow-2xl shadow-green-500/30'
+                            : 'bg-gradient-to-r from-red-500 to-pink-500 border-red-400/50 text-white shadow-2xl shadow-red-500/30'
                             }`}>
-                            <div className={`w-2 h-2 rounded-full ${user?.isActive ? 'bg-green-500 animate-pulse shadow-lg shadow-green-500' : 'bg-red-500'}`}></div>
-                            {user?.isActive ? '✅ Account Active' : '⏳ Activation Pending'}
-                        </div>
-                    </div>
-                    {/* 👤 User Profile Dropdown Section */}
-                    <div className="group relative">
-                        <button className="flex items-center gap-4 bg-white hover:bg-gray-50 p-1 pr-4 rounded-2xl border border-gray-200 transition-all shadow-sm active:scale-95">
-                            <div className="w-10 h-10 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center text-white shadow-inner">
-                                <UserIcon size={20} />
-                            </div>
-                            <div className="text-left hidden sm:block">
-                                <p className="text-xs font-black uppercase italic leading-none">{user?.name}</p>
-                                <p className="text-[9px] font-bold text-orange-600 mt-1 uppercase tracking-tighter">ID: {user?.userId}</p>
-                            </div>
-                            <Settings size={14} className="text-gray-400 group-hover:rotate-90 transition-transform duration-500" />
-                        </button>
-
-                        {/* --- Hover/Click Menu --- */}
-                        <div className="absolute right-0 mt-3 w-64 bg-white rounded-[2rem] shadow-2xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[100] overflow-hidden">
-                            <div className="p-6 bg-gray-50/50 border-b border-gray-100">
-                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Account Overview</p>
-                                <p className="text-sm font-black uppercase italic">{user?.email}</p>
-                            </div>
-                            <div className="p-4 space-y-1">
-                                <Link to="/user/kyc" className="flex items-center gap-3 p-3 rounded-xl hover:bg-orange-50 text-gray-600 hover:text-orange-600 transition-all">
-                                    <CheckCircle size={16} />
-                                    <span className="text-[11px] font-black uppercase italic">Verify KYC Info</span>
-                                </Link>
-                                <button
-                                    onClick={() => { localStorage.clear(); navigate("/login"); }}
-                                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 text-gray-600 hover:text-red-600 transition-all"
-                                >
-                                    <LogOut size={16} />
-                                    <span className="text-[11px] font-black uppercase italic">Terminate Session</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* 🚀 1. NETWORK GROWTH LINK */}
-            <div className={`p-6 rounded-3xl border transition-all duration-500 mb-8 ${user?.isActive
-                ? 'bg-white border-orange-100 shadow-sm'
-                : 'bg-slate-50 border-slate-200 opacity-80 grayscale-[0.5]'
-                }`}>
-                <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-gray-400 font-black text-[10px] uppercase tracking-widest italic flex items-center gap-2">
-                        🚀 My Referral Link
-                        {!user?.isActive && <span className="text-red-500 font-black text-[8px] bg-red-50 px-2 py-0.5 rounded-full border border-red-100 uppercase animate-pulse">Activation Required</span>}
-                    </h3>
-                </div>
-
-                <div className="flex flex-col md:flex-row items-center gap-3">
-                    {/* Referral Link Box */}
-                    <div className={`flex-1 w-full p-4 rounded-2xl border border-dashed font-mono text-xs truncate transition-colors ${user?.isActive
-                        ? 'bg-gray-50 border-gray-300 text-blue-600 cursor-text'
-                        : 'bg-slate-100 border-slate-300 text-slate-400 cursor-not-allowed select-none'
-                        }`}>
-                        {user?.isActive
-                            ? `${window.location.origin}/register?ref=${user?.userId}`
-                            : "ID ACTIVATION REQUIRED TO VIEW LINK"}
-                    </div>
-
-                    {/* Copy Button with Lock Logic */}
-                    <button
-                        disabled={!user?.isActive}
-                        onClick={handleCopyLink} // 👈 Seedha function call karein
-                        className={`w-full md:w-auto px-8 py-4 rounded-2xl font-black text-xs uppercase shadow-lg transition-all active:scale-95 ${user?.isActive
-                            ? 'bg-orange-600 text-white hover:bg-orange-700'
-                            : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                            }`}
-                    >
-                        {user?.isActive ? "Copy Link" : "Link Locked"}
-                    </button>
-                </div>
-
-                {/* Hint for Inactive Users */}
-                {!user?.isActive && (
-                    <p className="text-[9px] text-slate-500 mt-3 font-bold uppercase tracking-tighter">
-                        * Pay the activation fee to unlock your unique referral tracking link.
-                    </p>
-                )}
-            </div>
-
-            {/* 📊 1. REFERRAL STATS */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-6 mb-8">
-                <h3 className="font-black text-gray-800 uppercase italic text-xl tracking-tighter">Referral Statistics</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 text-white">
-                        <p className="text-[10px] font-black uppercase tracking-wider">Total Referrals</p>
-                        <p className="text-xl font-black">{teamList.length}</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-4 text-white">
-                        <p className="text-[10px] font-black uppercase tracking-wider">Active Members</p>
-                        <p className="text-xl font-black">{teamList.filter(m => m.isActive).length}</p>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl p-4 text-white">
-                        <p className="text-[10px] font-black uppercase tracking-wider">Total Earnings</p>
-                        <p className="text-xl font-black">₹{displayWallet}</p>
-                    </div>
-                </div>
-
-                {/* 👤 2. MEMBER PROFILE */}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                {/* 👤 2. MEMBER PROFILE */}
-                <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                    <h3 className="font-black text-[10px] uppercase text-gray-400 mb-6 tracking-widest">Member Profile</h3>
-                    <div className="bg-gradient-to-br from-indigo-600 to-blue-800 rounded-2xl text-white p-6 shadow-xl mb-4">
-                        <h2 className="text-xl font-black uppercase italic tracking-tighter">{user?.name}</h2>
-                        <p className="text-[10px] opacity-80 font-bold">USER ID: {user?.userId}</p>
-                    </div>
-                    <button onClick={() => setIsIdCardOpen(true)} className="w-full py-3 border-2 border-indigo-50 text-indigo-600 font-black text-[10px] uppercase rounded-2xl hover:bg-indigo-50 transition">View ID Card</button>
-                </div>
-
-                {/* 💰 3. WALLET BALANCE (FIXED CALCULATION) */}
-                <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col justify-between">
-                    <div>
-                        <h3 className="font-black text-[10px] uppercase text-gray-400 mb-6 tracking-widest">Wallet Balance</h3>
-                        <p className="text-4xl font-black text-gray-800 tracking-tighter">₹{displayWallet}</p>
-                        <p className="text-[9px] text-green-600 font-bold uppercase mt-1">
-                            Based on {teamList.filter(m => m.isActive).length} Active Members
-                        </p>
-                    </div>
-
-                    {/* ✅ KYC Validation Logic Hata Diya Gaya Hai */}
-                    <button
-                        onClick={() => setIsWithdrawModalOpen(true)}
-                        className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl font-black uppercase italic shadow-xl shadow-orange-600/20 active:scale-95 transition-all mt-4"
-                    >
-                        Withdraw Money
-                    </button>
-                </div>
-
-
-                {/* Wallet Balance Card ke niche add karein */}
-                {stats.lastWithdrawStatus && (
-                    <div className={`mt-4 p-5 bg-white rounded-3xl border-2 border-dashed flex justify-between items-center ${stats.lastWithdrawStatus === 'pending' ? 'border-orange-200 animate-pulse' :
-                        stats.lastWithdrawStatus === 'approved' ? 'border-green-200' : 'border-red-200'
-                        }`}>
-                        <div className="flex items-center gap-3">
-                            {/* Status Dot Color Change */}
-                            <div className={`w-2 h-2 rounded-full ${stats.lastWithdrawStatus === 'pending' ? 'bg-orange-500' :
-                                stats.lastWithdrawStatus === 'approved' ? 'bg-green-500' : 'bg-red-500'
-                                }`}></div>
-
-                            <div>
-                                <p className="text-[10px] font-black uppercase text-gray-400 leading-none mb-1">
-                                    Withdrawal Request
-                                </p>
-                                <p className={`text-xs font-black uppercase italic ${stats.lastWithdrawStatus === 'pending' ? 'text-slate-800' :
-                                    stats.lastWithdrawStatus === 'approved' ? 'text-green-600' : 'text-red-600'
-                                    }`}>
-                                    {stats.lastWithdrawStatus === 'pending' && '⏳ Under Review'}
-                                    {stats.lastWithdrawStatus === 'approved' && '✅ Payment Completed'}
-                                    {stats.lastWithdrawStatus === 'rejected' && '❌ Request Rejected'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="text-right">
-                            <span className={`text-sm font-black tracking-tighter ${stats.lastWithdrawStatus === 'rejected' ? 'text-red-500 line-through opacity-50' : 'text-orange-600'
-                                }`}>
-                                ₹{stats.lastWithdrawAmount || 0}
-                            </span>
-                            {stats.lastWithdrawStatus === 'rejected' && (
-                                <p className="text-[8px] font-bold text-red-400 uppercase mt-0.5">Check KYC/Bank</p>
+                            <div className={`w-3 h-3 rounded-full ${user?.isActive ? 'bg-white animate-pulse' : 'bg-white'} shadow-lg`}></div>
+                            {user?.isActive ? (
+                                <>
+                                    <Zap size={16} className="animate-pulse" />
+                                    Account Active
+                                </>
+                            ) : (
+                                '⏳ Activation Pending'
                             )}
                         </div>
+
+                        {/* User Profile */}
+                        <div className="group relative">
+                            <button className="flex items-center gap-4 bg-white/80 hover:bg-white p-2 pr-5 rounded-2xl border-2 border-slate-200 hover:border-orange-300 transition-all shadow-lg hover:shadow-2xl hover:shadow-orange-500/20">
+                                <div className="w-12 h-12 bg-gradient-to-br from-slate-800 via-slate-700 to-slate-900 rounded-xl flex items-center justify-center text-white shadow-xl">
+                                    <UserIcon size={22} />
+                                </div>
+                                <div className="text-left hidden sm:block">
+                                    <p className="text-sm font-black uppercase">{user?.name}</p>
+                                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-tight">ID: {user?.userId}</p>
+                                </div>
+                                <Settings size={16} className="text-slate-400 group-hover:rotate-180 transition-transform duration-500" />
+                            </button>
+
+                            <div className="absolute right-0 mt-4 w-72 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border-2 border-slate-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-[100] overflow-hidden animate-in slide-in-from-top-2">
+                                <div className="p-8 bg-gradient-to-br from-slate-50 to-orange-50 border-b-2 border-slate-100">
+                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Account Overview</p>
+                                    <p className="text-lg font-black uppercase">{user?.email}</p>
+                                </div>
+                                <div className="p-5 space-y-2">
+                                    <Link to="/update-kyc" className="flex items-center gap-3 p-4 rounded-2xl hover:bg-gradient-to-r hover:from-orange-500 hover:to-pink-500 text-slate-700 hover:text-white transition-all group/item shadow-sm hover:shadow-lg">
+                                        <CheckCircle size={18} className="group-hover/item:scale-110 transition-transform" />
+                                        <span className="text-xs font-black uppercase">Verify KYC Info</span>
+                                    </Link>
+                                    <button
+                                        onClick={() => { localStorage.clear(); navigate("/login"); }}
+                                        className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-gradient-to-r hover:from-red-500 hover:to-pink-500 text-slate-700 hover:text-white transition-all group/item shadow-sm hover:shadow-lg"
+                                    >
+                                        <LogOut size={18} className="group-hover/item:scale-110 transition-transform" />
+                                        <span className="text-xs font-black uppercase">Sign Out</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                )}
+                </header>
 
+                {/* Premium Referral Link Section */}
+                <div className={`relative p-8 rounded-3xl border-2 transition-all mb-8 overflow-hidden animate-in slide-in-from-bottom duration-700 ${user?.isActive
+                    ? 'bg-gradient-to-br from-white via-orange-50 to-white border-orange-200 shadow-2xl shadow-orange-500/10'
+                    : 'bg-gradient-to-br from-slate-100 to-slate-50 border-slate-300 opacity-70'
+                    }`}>
+                    {/* Animated Border Glow */}
+                    {user?.isActive && (
+                        <div className="absolute inset-0 rounded-3xl">
+                            <div className="absolute inset-0 bg-gradient-to-r from-orange-500 via-pink-500 to-orange-500 opacity-20 blur-xl animate-pulse"></div>
+                        </div>
+                    )}
 
-            </div>
-            <BillingSection user={user} />
+                    <div className="relative">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-3 bg-gradient-to-br from-orange-500 to-pink-500 rounded-2xl shadow-xl shadow-orange-500/30">
+                                <Target className="text-white" size={24} />
+                            </div>
+                            <div>
+                                <h3 className="font-black text-xl uppercase tracking-tight">Your Referral Link</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Share & Earn Rewards</p>
+                            </div>
+                        </div>
 
-
-            {/* 🌳 4. NETWORK GENEALOGY */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-8 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50/50 border-b border-gray-100">
-                    <div>
-                        <h3 className="font-black text-gray-800 uppercase italic text-xl tracking-tighter">Network <span className="text-orange-600">Genealogy</span></h3>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Live Spillover Mapping</p>
-                    </div>
-                    <div className="flex bg-gray-200 p-1 rounded-xl">
-                        <button onClick={() => setViewMode("list")} className={`px-6 py-2 text-[10px] font-black uppercase rounded-lg transition ${viewMode === 'list' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500'}`}>List</button>
-                        <button onClick={() => setViewMode("tree")} className={`px-6 py-2 text-[10px] font-black uppercase rounded-lg transition ${viewMode === 'tree' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500'}`}>Tree</button>
-                        <button onClick={() => setViewMode("levels")} className={`px-6 py-2 text-[10px] font-black uppercase rounded-lg transition ${viewMode === 'levels' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500'}`}>Levels</button>
+                        <div className="flex flex-col md:flex-row items-center gap-4">
+                            <div className={`flex-1 w-full p-5 rounded-2xl border-2 font-mono text-sm truncate transition-all ${user?.isActive
+                                ? 'bg-white border-orange-200 text-orange-600 shadow-inner'
+                                : 'bg-slate-200 border-slate-300 text-slate-500 cursor-not-allowed'
+                                }`}>
+                                {user?.isActive
+                                    ? `${window.location.origin}/register?ref=${user.userId}`
+                                    : "🔒 ACTIVATE YOUR ID TO UNLOCK"}
+                            </div>
+                            <button
+                                disabled={!user?.isActive}
+                                onClick={handleCopyLink}
+                                className={`px-10 py-5 rounded-2xl font-black text-sm uppercase transition-all shadow-xl relative overflow-hidden group ${user?.isActive
+                                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:from-orange-600 hover:to-pink-600 hover:scale-105 active:scale-95'
+                                    : 'bg-slate-400 text-slate-600 cursor-not-allowed'
+                                    }`}
+                            >
+                                {user?.isActive && (
+                                    <div className="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                                )}
+                                <span className="relative flex items-center gap-2">
+                                    {user?.isActive ? (
+                                        <>
+                                            <Activity size={18} className="animate-pulse" />
+                                            Copy Link
+                                        </>
+                                    ) : (
+                                        '🔒 Locked'
+                                    )}
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div className="p-8">
-                    {/* LIST VIEW */}
-                    {viewMode === "list" && (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="text-[10px] font-black text-gray-400 uppercase border-b border-gray-100">
-                                    <tr><th className="pb-4">Member ID</th><th className="pb-4">Name</th><th className="pb-4 text-right">Status</th></tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-50">
-                                    {teamList.map((m) => (
-                                        <tr key={m.userId} className="group hover:bg-gray-50 transition">
-                                            <td className="py-4 font-black text-xs text-gray-800">{m.userId}</td>
-                                            <td className="py-4 text-xs font-bold text-gray-600 uppercase italic">{m.name}</td>
-                                            <td className="py-4 text-right">
-                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${m.isActive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                                    {m.isActive ? 'Active' : 'Pending'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                {/* Ultra-Premium Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+                    {/* Team Card */}
+                    <Link
+                        to="/my-team"
+                        className="group relative bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-3xl p-8 text-white hover:scale-105 transition-all duration-500 shadow-2xl shadow-blue-500/30 hover:shadow-blue-500/50 overflow-hidden animate-in slide-in-from-left duration-700"
+                    >
+                        {/* Animated Background */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
-                    {/* TREE VIEW */}
-                    {viewMode === "tree" && (
-                        <div className="flex justify-center py-10 overflow-auto bg-[#0a1128] rounded-3xl min-h-[500px] border-4 border-gray-800">
-                            {recursiveTree && <ReferralTree data={recursiveTree} />}
-                        </div>
-                    )}
+                        {/* Glow Effect */}
+                        <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
 
-                    {/* LEVELS VIEW (Locked/Unlocked Blur) */}
-                    {viewMode === "levels" && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {levelsData.map((lvl) => {
-                                const isUnlocked = teamList.filter(m => m.isActive).length >= lvl.target;
-                                return (
-                                    <div key={lvl.lv} className={`relative p-6 rounded-[2rem] border transition-all duration-500 ${isUnlocked ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-100 grayscale blur-[2px] opacity-60'}`}>
-                                        {!isUnlocked && (
-                                            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/20 rounded-[2rem]">
-                                                <div className="bg-white p-2 rounded-full shadow-lg"><Lock size={16} className="text-gray-400" /></div>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center text-orange-600 font-black shadow-sm border border-orange-100">L{lvl.lv}</div>
-                                            {isUnlocked ? <CheckCircle size={20} className="text-green-500" /> : <Trophy size={20} className="text-gray-300" />}
-                                        </div>
-                                        <h4 className="font-black text-gray-800 uppercase italic text-sm">{lvl.reward}</h4>
-                                        <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
-                                            <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Progress: {Math.min(teamList.filter(m => m.isActive).length, lvl.target)}/{lvl.target}</div>
-                                            <div className="text-xs font-black text-green-600">₹{lvl.income.toLocaleString()}</div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                        <div className="relative">
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="p-4 bg-white/20 backdrop-blur-xl rounded-2xl shadow-xl">
+                                    <Users size={36} className="opacity-90" />
+                                </div>
+                                <ArrowRight size={24} className="opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all" />
+                            </div>
+                            <p className="text-sm font-bold uppercase tracking-wider opacity-90 mb-2 flex items-center gap-2">
+                                <Star size={14} /> My Team Network
+                            </p>
+                            <p className="text-5xl font-black mb-3 tracking-tight">{stats.totalTeam}</p>
+                            <div className="flex items-center gap-2 text-sm font-bold opacity-90">
+                                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                {stats.activeTeam} Active Members
+                            </div>
                         </div>
-                    )}
+                    </Link>
+
+                    {/* Levels Card */}
+                    <Link
+                        to="/levels"
+                        className="group relative bg-gradient-to-br from-orange-500 via-orange-600 to-pink-600 rounded-3xl p-8 text-white hover:scale-105 transition-all duration-500 shadow-2xl shadow-orange-500/30 hover:shadow-orange-500/50 overflow-hidden animate-in slide-in-from-bottom duration-700"
+                    >
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
+
+                        <div className="relative">
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="p-4 bg-white/20 backdrop-blur-xl rounded-2xl shadow-xl">
+                                    <Trophy size={36} className="opacity-90 animate-bounce" style={{ animationDuration: '3s' }} />
+                                </div>
+                                <ArrowRight size={24} className="opacity-0 group-hover:opacity-100 group-hover:translate-x-2 transition-all" />
+                            </div>
+                            <p className="text-sm font-bold uppercase tracking-wider opacity-90 mb-2 flex items-center gap-2">
+                                <Award size={14} /> Achievement Rank
+                            </p>
+                            <p className="text-5xl font-black mb-3 tracking-tight">{stats.rank}</p>
+                            <p className="text-sm font-bold opacity-90">
+                                View All Rewards →
+                            </p>
+                        </div>
+                    </Link>
+
+                    {/* Wallet Card */}
+                    <div className="group relative bg-gradient-to-br from-green-500 via-emerald-600 to-teal-600 rounded-3xl p-8 text-white shadow-2xl shadow-green-500/30 hover:shadow-green-500/50 overflow-hidden animate-in slide-in-from-right duration-700">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="absolute -top-20 -right-20 w-40 h-40 bg-white/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
+
+                        <div className="relative">
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="p-4 bg-white/20 backdrop-blur-xl rounded-2xl shadow-xl">
+                                    <Wallet size={36} className="opacity-90" />
+                                </div>
+                                <TrendingUp size={24} className="opacity-90 animate-pulse" />
+                            </div>
+                            <p className="text-sm font-bold uppercase tracking-wider opacity-90 mb-2 flex items-center gap-2">
+                                <Zap size={14} className="animate-pulse" /> Wallet Balance
+                            </p>
+                            <p className="text-5xl font-black mb-4 tracking-tight">₹{stats.wallet.toLocaleString()}</p>
+                            <button
+                                onClick={() => setIsWithdrawModalOpen(true)}
+                                className="w-full px-6 py-4 bg-white/20 hover:bg-white/30 backdrop-blur-xl rounded-2xl text-sm font-black uppercase transition-all shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95"
+                            >
+                                💸 Withdraw Money
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Member Profile & Billing */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-bottom duration-700">
+                    {/* Member Profile */}
+                    <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border-2 border-slate-100 hover:shadow-3xl transition-all">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl shadow-xl">
+                                <Crown className="text-white" size={24} />
+                            </div>
+                            <h3 className="font-black text-xl uppercase tracking-tight">Member Profile</h3>
+                        </div>
+                        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-3xl text-white p-8 mb-6 shadow-2xl shadow-indigo-500/30 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
+                            <h2 className="text-2xl font-black uppercase tracking-tight relative">{user?.name}</h2>
+                            <p className="text-sm opacity-90 font-bold mt-2 relative">USER ID: {user?.userId}</p>
+                        </div>
+                        <button
+                            onClick={() => setIsIdCardOpen(true)}
+                            className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-black text-sm uppercase rounded-2xl hover:from-indigo-600 hover:to-purple-600 transition-all shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95"
+                        >
+                            🎫 View Digital ID Card
+                        </button>
+                    </div>
+
+                    {/* Billing Section */}
+                    <BillingSection user={user} />
                 </div>
             </div>
 
-
+            {/* Modals */}
             <WithdrawModal
                 isOpen={isWithdrawModalOpen}
                 onClose={() => setIsWithdrawModalOpen(false)}
-                balance={displayWallet}
-                // 🚩 YE FUNCTION PASS KARNA ZAROORI HAI
+                balance={stats.wallet}
                 onWithdraw={async (modalData) => {
                     try {
-                        // 🚩 Data mapping as per backend requirement
                         const dataToSend = {
                             amount: Number(modalData.amount),
                             paymentDetails: modalData.upiId || "Not Provided",
                             accountHolderName: user.bankDetails?.accountHolderName || user.bankDetails?.holderName || "N/A"
                         };
 
-                        // ✅ API instance use karein, headers ki chinta nahi
                         const res = await API.post("/wallet/withdraw", dataToSend);
 
                         if (res.data.success) {
                             toast.success("Request Pending!");
                             setIsWithdrawModalOpen(false);
-                            fetchDashboardData(); // Refresh wallet and stats
+                            fetchDashboardData();
                         }
                     } catch (err) {
-                        // Backend se aaya error message dikhayein
                         toast.error(err.response?.data?.message || "Withdrawal failed");
                     }
                 }}
             />
 
-            <IdCardModal isOpen={isIdCardOpen} onClose={() => setIsIdCardOpen(false)} user={user} />
+            <IdCardModal
+                isOpen={isIdCardOpen}
+                onClose={() => setIsIdCardOpen(false)}
+                user={user}
+            />
+
+            {/* Custom CSS for animations */}
+            <style jsx>{`
+                @keyframes blob {
+                    0%, 100% { transform: translate(0, 0) scale(1); }
+                    33% { transform: translate(30px, -50px) scale(1.1); }
+                    66% { transform: translate(-20px, 20px) scale(0.9); }
+                }
+                
+                .animate-blob {
+                    animation: blob 7s infinite;
+                }
+                
+                .animation-delay-2000 {
+                    animation-delay: 2s;
+                }
+                
+                .animation-delay-4000 {
+                    animation-delay: 4s;
+                }
+            `}</style>
         </div>
     );
 };

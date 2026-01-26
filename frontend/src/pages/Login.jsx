@@ -26,8 +26,8 @@ const Login = () => {
 
             // Login.jsx ke andar change karein
             if (res.data.success) {
-                const { token, user } = res.data;
-
+                const user = res.data.user;
+                const token = user.token; // 👈 YAHAN SE LO
                 // 1. Storage update
                 localStorage.setItem("token", token);
                 localStorage.setItem("user", JSON.stringify(user));

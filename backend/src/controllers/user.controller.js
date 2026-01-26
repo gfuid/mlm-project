@@ -9,13 +9,7 @@ const User = require('../models/User.model');
 const { getNextUserId } = require("../services/counter.service");
 const { findUpline } = require("../services/matrix.service");
 // 1. Generate Token
-const generateToken = (user) => {
-    return jwt.sign(
-        { _id: user._id, userId: user.userId, role: user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: "30d" }
-    );
-};
+
 
 
 
@@ -128,31 +122,6 @@ const registerUser = async (req, res) => {
     }
 };
 
-
-// 3. Login User
-const loginUser = async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const user = await User.findOne({ email });
-
-        if (user && (await user.matchPassword(password))) {
-            res.json({
-                success: true,
-                _id: user._id,
-                name: user.name,
-                userId: user.userId,
-                email: user.email,
-                role: user.role,
-                token: generateToken(user)
-            });
-        } else {
-            res.status(401).json({ message: "Invalid email or password" });
-        }
-    } catch (error) {
-        console.log("Login Error:", error);
-        res.status(500).json({ message: error.message });
-    }
-};
 
 // 4. Get My Team
 const getMyTeam = async (req, res) => {
@@ -371,7 +340,6 @@ const getTreeData = async (req, res) => {
 // ✅ Export All Functions Correctly
 module.exports = {
     registerUser,
-    loginUser,
     getMyTeam,
     getDashboardStats,
     getFullTree,

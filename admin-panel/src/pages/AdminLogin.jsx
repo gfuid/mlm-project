@@ -1,6 +1,5 @@
-
 import React, { useState } from "react";
-import API from "../api/axios"; // 🚩 Centralized API instance
+import API from "../api/axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { Lock, Mail, Eye, EyeOff, ShieldCheck, Loader2 } from "lucide-react";
@@ -12,28 +11,114 @@ const AdminLogin = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
+    // ✅ GUARANTEED STORAGE FUNCTION
+    const guaranteedStorage = async (key, value) => {
+        return new Promise((resolve, reject) => {
+            try {
+                localStorage.setItem(key, value);
+
+                // Immediate verification
+                const stored = localStorage.getItem(key);
+                if (stored === value) {
+                    console.log(`✅ ${key} stored and verified`);
+                    resolve(true);
+                } else {
+                    console.error(`❌ ${key} verification failed`);
+                    reject(new Error(`Failed to store ${key}`));
+                }
+            } catch (error) {
+                console.error(`❌ Storage error for ${key}:`, error);
+                reject(error);
+            }
+        });
+    };
+
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         try {
+            console.log('🔄 Admin login attempt...');
+
             // 1. Backend API Call
             const res = await API.post("/auth/admin-login", { email, password });
 
-            // 2. Deep Role Verification (Sirf Admin allowed hai)
-            if (res.data.success && res.data.user.role === "admin") {
-                localStorage.setItem("token", res.data.token);
-                localStorage.setItem("userInfo", JSON.stringify(res.data.user));
+            console.log('✅ Login response:', res.data);
 
-                toast.success("Access Granted: Welcome Master Admin", { icon: "🚀" });
-
-                // Admin Dashboard par bhej rahe hain
-                setTimeout(() => navigate("/admin"), 100);
-            } else {
-                toast.error("Unauthorized: These are not Master Credentials!");
+            // 2. Verify response structure
+            if (!res.data.success) {
+                throw new Error(res.data.message || 'Login failed');
             }
+
+            if (!res.data.token) {
+                throw new Error('No token received from server');
+            }
+
+            if (!res.data.user) {
+                throw new Error('No user data received from server');
+            }
+
+            // 3. Deep Role Verification
+            if (res.data.user.role !== "admin") {
+                throw new Error('Unauthorized: These are not Master Credentials!');
+            }
+
+            const { token, user } = res.data;
+
+            console.log('📦 Storing credentials...');
+            console.log('Token length:', token.length);
+            console.log('User data:', user);
+
+            // 4. ✅ GUARANTEED STORAGE WITH VERIFICATION
+            await guaranteedStorage("token", token);
+            await guaranteedStorage("userInfo", JSON.stringify(user));
+
+            console.log('✅ All credentials stored successfully');
+
+            // 5. Triple verification
+            const verifyToken = localStorage.getItem("token");
+            const verifyUser = localStorage.getItem("userInfo");
+
+            if (!verifyToken || !verifyUser) {
+                throw new Error('Storage verification failed - credentials not found');
+            }
+
+            // Parse and verify user data
+            const parsedUser = JSON.parse(verifyUser);
+            if (parsedUser.role !== 'admin') {
+                throw new Error('Storage verification failed - invalid role');
+            }
+
+            console.log('✅ Storage triple-verified successfully');
+            console.log('Final check - Token:', verifyToken.substring(0, 20) + '...');
+            console.log('Final check - User:', parsedUser.email || parsedUser.name);
+
+            // 6. Show success toast
+            toast.success("Access Granted: Welcome Master Admin", {
+                icon: "🚀",
+                duration: 2000
+            });
+
+            // 7. ✅ DELAYED NAVIGATION with extra safety (500ms instead of 100ms)
+            console.log('⏳ Waiting 500ms before navigation...');
+
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            console.log('🚀 Navigating to admin dashboard now...');
+            navigate("/admin", { replace: true });
+
         } catch (err) {
-            toast.error(err.response?.data?.message || "Authentication Failed");
+            console.error('❌ Admin login error:', err);
+
+            // Show error to user
+            const errorMessage = err.response?.data?.message || err.message || "Authentication Failed";
+            toast.error(errorMessage, { duration: 3000 });
+
+            // Clear any partial data on error
+            console.log('🧹 Cleaning up after error...');
+            localStorage.removeItem("token");
+            localStorage.removeItem("userInfo");
+
         } finally {
             setLoading(false);
         }
@@ -65,9 +150,11 @@ const AdminLogin = () => {
                                 <input
                                     type="email"
                                     required
+                                    value={email}
                                     className="w-full bg-slate-950/50 border border-slate-800 p-4 pl-12 rounded-2xl text-white outline-none focus:ring-2 ring-orange-600/50 font-bold text-xs"
                                     placeholder="master@system.com"
                                     onChange={(e) => setEmail(e.target.value)}
+                                    disabled={loading}
                                 />
                             </div>
                         </div>
@@ -79,11 +166,18 @@ const AdminLogin = () => {
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     required
+                                    value={password}
                                     className="w-full bg-slate-950/50 border border-slate-800 p-4 pl-12 pr-12 rounded-2xl text-white outline-none focus:ring-2 ring-orange-600/50 font-bold text-xs"
                                     placeholder="••••••••"
                                     onChange={(e) => setPassword(e.target.value)}
+                                    disabled={loading}
                                 />
-                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-orange-500 bg-transparent border-none">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-orange-500 bg-transparent border-none disabled:opacity-50"
+                                    disabled={loading}
+                                >
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                             </div>
@@ -92,9 +186,19 @@ const AdminLogin = () => {
                         <button
                             disabled={loading}
                             type="submit"
-                            className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 border-none ${loading ? 'bg-slate-800 text-slate-500' : 'bg-orange-600 hover:bg-orange-500 text-white shadow-orange-600/20 italic'}`}
+                            className={`w-full py-5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3 border-none ${loading
+                                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                    : 'bg-orange-600 hover:bg-orange-500 text-white shadow-orange-600/20 italic active:scale-95'
+                                }`}
                         >
-                            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Authenticating Node...</> : "Initialize Access"}
+                            {loading ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Authenticating Node...
+                                </>
+                            ) : (
+                                "Initialize Access"
+                            )}
                         </button>
                     </form>
                 </div>

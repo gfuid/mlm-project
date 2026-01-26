@@ -12,25 +12,28 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         // AuthContext.jsx ke loadUser function mein
         const loadUser = async () => {
+            // 🚩 Galti yahan thi: token ko pehle localStorage se nikalna padega
             const token = localStorage.getItem("token");
             const storedUser = localStorage.getItem("user");
 
             if (token && storedUser) {
-                // 🚩 1. Pehle local storage se turant user set karo
-                setUser(JSON.parse(storedUser));
-                setLoading(false); // 🚩 2. Dashboard render hone do
-
                 try {
-                    // 🚩 3. Background sync with TIMESTAMP to avoid cache (304 error)
+                    // 🚩 Ek aur galti fix: JSON.parse sirf ek baar karein
+                    const parsedUser = JSON.parse(storedUser);
+                    setUser(parsedUser);
+                    setLoading(false);
+
+                    // Background sync logic
                     const res = await API.get(`/user/dashboard-stats?t=${Date.now()}`);
                     if (res.data.success) {
                         const latestUser = res.data.data;
                         setUser(latestUser);
                         localStorage.setItem("user", JSON.stringify(latestUser));
-                        console.log("🚀 Sync Success: ID is Active");
                     }
                 } catch (err) {
-                    console.error("Auth background sync failed");
+                    console.error("Auth background sync failed", err);
+                    // Agar sync fail ho jaye toh loading false rehne dein taaki stored user dikhta rahe
+                    setLoading(false);
                 }
             } else {
                 setLoading(false);
