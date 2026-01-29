@@ -27,6 +27,15 @@ const Register = () => {
         if (ref) setFormData(prev => ({ ...prev, sponsorId: ref }));
     }, [location]);
 
+
+    // Frontend check on Sponsor Field Blur
+    const checkSponsorLimit = async (id) => {
+        const res = await API.get(`/auth/check-limit/${id}`);
+        if (res.data.isFull) {
+            alert("Ye ID full ho chuki hai, please apne child member ke ID use karein.");
+        }
+    }
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
@@ -97,6 +106,8 @@ const Register = () => {
                                 className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border-2 border-transparent font-black text-orange-600 outline-none transition-all group-focus-within:bg-white"
                                 value={formData.sponsorId}
                                 readOnly
+                                // 🚩 Input load hote hi ya blur par check karein
+                                onBlur={() => checkSponsorLimit(formData.sponsorId)}
                             />
                         </div>
                     </div>
@@ -170,8 +181,8 @@ const Register = () => {
 
                     {/* ✅ TERMS & CONDITIONS CHECKBOX - MANDATORY */}
                     <div className={`border-2 rounded-2xl p-4 transition-all ${termsAccepted
-                            ? 'bg-green-50 border-green-200'
-                            : 'bg-orange-50 border-orange-200'
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-orange-50 border-orange-200'
                         }`}>
                         <label className="flex items-start gap-3 cursor-pointer group">
                             <input
@@ -213,8 +224,8 @@ const Register = () => {
                         type="submit"
                         disabled={loading || !termsAccepted}
                         className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] transition-all shadow-xl flex justify-center items-center gap-3 active:scale-95 italic ${loading || !termsAccepted
-                                ? 'bg-slate-400 text-slate-600 cursor-not-allowed opacity-70'
-                                : 'bg-[#0F172A] text-white hover:bg-black shadow-slate-900/20'
+                            ? 'bg-slate-400 text-slate-600 cursor-not-allowed opacity-70'
+                            : 'bg-[#0F172A] text-white hover:bg-black shadow-slate-900/20'
                             }`}
                     >
                         {loading ? (

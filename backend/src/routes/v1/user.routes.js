@@ -11,6 +11,7 @@ const {
 } = require('../../controllers/user.controller');
 
 const { protect } = require('../../middlewares/auth.middleware');
+const userController = require('../../controllers/user.controller');
 
 // ===== PUBLIC ROUTES =====
 // (none for now)
@@ -24,5 +25,10 @@ router.get('/team', protect, getMyTeamList);
 router.get('/tree/:userId', protect, getTreeData);
 
 router.put('/update-kyc', protect, updateKycDetails);
+
+
+router.get('/mlm-stats', protect, userController.getMyRankProgress);
+router.get('/my-team', protect, userController.getMyTeam);
+router.get('/my-rewards', protect, userController.getMyRewards);
 
 module.exports = router;

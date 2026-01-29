@@ -1,7 +1,7 @@
 const User = require('../models/User.model.js');
 const Withdrawal = require('../models/Withdrawal.model.js'); // Ensure this model exists
 const mongoose = require('mongoose');
-
+const { handleMemberActivation } = require('../services/mlm.service');
 
 // 1. Get All Users for Admin
 
@@ -75,7 +75,7 @@ const updateAdStatus = async (req, res) => {
     }
 };
 
-const getAllWithdrawals = async (req, res) => {
+const getAllWithdrawals = async (req, res, next) => {
     try {
         const withdrawals = await Withdrawal.find({ status: 'pending' })
             .populate('userId', 'name userId mobile bankDetails') // 👈 Ye line Bank Details fetch karegi
@@ -215,27 +215,103 @@ const getSystemTree = async (req, res) => {
 
 
 const toggleUserStatus = async (req, res) => {
+    console.log('✅ toggleUserStatus called');
+    console.log('📦 Params:', req.params);
+    console.log('📦 Body:', req.body);
+
     try {
         const { userId } = req.params;
         const { isActive } = req.body;
 
-        const user = await User.findOneAndUpdate(
-            { userId },
-            { isActive },
-            { new: true }
-        );
+        // Validation
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                message: 'User ID is required'
+            });
+        }
 
-        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+        if (typeof isActive !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'isActive must be a boolean'
+            });
+        }
 
-        res.status(200).json({
+        console.log(`🔄 Toggling ${userId} to ${isActive}`);
+
+        // Find user
+        const user = await User.findOne({ userId });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        console.log('👤 User found:', user.userId);
+
+        // Check if first-time activation
+        const wasInactive = !user.isActive;
+        const isFirstActivation = isActive && wasInactive && !user.activatedAt;
+
+        // Update user status
+        user.isActive = isActive;
+
+        if (isFirstActivation) {
+            console.log('🚀 First time activation detected');
+            user.activatedAt = new Date();
+            await user.save();
+
+            // Trigger MLM logic
+            try {
+                await handleMemberActivation(user._id);
+                console.log('✅ MLM activation completed');
+            } catch (mlmError) {
+                console.error('❌ MLM activation error:', mlmError);
+                // Continue anyway, don't fail the request
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'User activated! MLM bonuses processed.',
+                user: {
+                    userId: user.userId,
+                    name: user.name,
+                    isActive: user.isActive,
+                    activatedAt: user.activatedAt
+                }
+            });
+        }
+
+        // Regular toggle
+        await user.save();
+        console.log('✅ Status updated successfully');
+
+        return res.status(200).json({
             success: true,
-            message: `User ${isActive ? 'Activated' : 'Inactivated'} Successfully`,
-            data: user
+            message: `Status updated to ${isActive ? 'Active' : 'Inactive'}`,
+            user: {
+                userId: user.userId,
+                name: user.name,
+                isActive: user.isActive
+            }
         });
-    } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+
+    } catch (error) {
+        console.error('❌ toggleUserStatus error:', error);
+        console.error('Stack:', error.stack);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Internal server error'
+        });
     }
 };
+
+
+
 
 const verifyUserKyc = async (req, res) => {
     try {

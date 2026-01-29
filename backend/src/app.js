@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const authRoutes = require('./routes/v1/auth.routes');
 
 const app = express();
 
@@ -20,9 +21,22 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+
+
 // Body parsers
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+
+// Global error handler (place after all routes)
+app.use((err, req, res, next) => {
+    console.error('🔥 Uncaught error:', err.stack || err);
+    if (process.env.NODE_ENV === 'development') {
+        return res.status(err.status || 500).json({ success: false, message: err.message, stack: err.stack });
+    }
+    res.status(err.status || 500).json({ success: false, message: 'Internal Server Error' });
+});
 
 // Rate limiters
 const loginLimiter = rateLimit({
@@ -41,7 +55,7 @@ const emailLimiter = rateLimit({
 app.use('/api/v1/auth/login', loginLimiter);
 app.use('/api/v1/auth/admin-login', loginLimiter);
 app.use('/api/v1/auth/forgot-password', emailLimiter);
-
+app.use('/api/v1/auth', authRoutes);
 // Routes
 app.use('/api/v1/auth', require('./routes/v1/auth.routes'));
 app.use('/api/v1/user', require('./routes/v1/user.routes'));

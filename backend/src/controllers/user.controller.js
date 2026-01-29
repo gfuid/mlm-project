@@ -6,8 +6,6 @@ const Withdrawal = require('../models/Withdrawal.model');
 // ✅ Model Import
 const User = require('../models/User.model');
 //const commissionService = require('../services/commission.service');
-const { getNextUserId } = require("../services/counter.service");
-const { findUpline } = require("../services/matrix.service");
 const { handleMemberActivation, getUserMLMStats } = require('../services/mlm.service');
 const Wallet = require('../models/Wallet.model');
 
@@ -18,7 +16,7 @@ const Wallet = require('../models/Wallet.model');
 
 // controllers/user.controller.js
 
-const updateKycDetails = async (req, res) => {
+const updateKycDetails = async (req, res, next) => {
     try {
         // 1. Destructure address also from req.body
         const { bankName, accountNumber, ifscCode, accountHolderName, upiId, address } = req.body;
@@ -72,58 +70,6 @@ const updateKycDetails = async (req, res) => {
 
 
 
-const registerUser = async (req, res) => {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-        const { name, email, mobile, password, sponsorId } = req.body;
-
-        const exists = await User.findOne(
-            { $or: [{ email }, { mobile }] },
-            null,
-            { session }
-        );
-
-        if (exists) {
-            throw new Error("Email or Mobile already registered");
-        }
-
-        const userId = await getNextUserId(session);
-        const finalSponsor = sponsorId || "KARAN1001";
-        const uplineId = await findUpline(finalSponsor, session);
-
-        const user = await User.create([{
-            name,
-            email: email.toLowerCase(),
-            mobile,
-            password,
-            userId,
-            sponsorId: finalSponsor,
-            uplineId,
-            rank: "Promoter",
-            isActive: false
-        }], { session });
-
-        await session.commitTransaction();
-        session.endSession();
-
-        res.status(201).json({
-            success: true,
-            userId,
-            message: "Registered successfully"
-        });
-
-    } catch (err) {
-        await session.abortTransaction();
-        session.endSession();
-
-        res.status(500).json({
-            success: false,
-            message: err.message
-        });
-    }
-};
 
 
 // 4. Get My Team
@@ -133,7 +79,7 @@ const registerUser = async (req, res) => {
 
 
 // 6. Full Tree Logic
-const getFullTree = async (req, res) => {
+const getFullTree = async (req, res, next) => {
     try {
         const rootUserId = req.params.userId;
 
@@ -161,7 +107,7 @@ const getFullTree = async (req, res) => {
 };
 
 // 7. Activate User
-const activateUser = async (req, res) => {
+const activateUser = async (req, res, next) => {
     try {
         const { userIdToActivate } = req.body;
 
@@ -210,7 +156,7 @@ const distributeCommission = async (sponsorId, amount) => {
 };
 
 // user.controller.js
-const getProfile = async (req, res) => {
+const getProfile = async (req, res, next) => {
     try {
         // 1. Password ko select('-password') karke exclude karna sahi hai
         const user = await User.findById(req.user._id).select('-password');
@@ -239,7 +185,7 @@ const getProfile = async (req, res) => {
 };
 
 
-const getMe = async (req, res) => {
+const getMe = async (req, res, next) => {
     try {
         // 🚩 FIX: Ensure karein ki pura user document (including bankDetails) select ho raha hai
         const user = await User.findById(req.user._id).select("-password");
@@ -263,14 +209,14 @@ const getMe = async (req, res) => {
 // user.controller.js mein naya function add karein
 // user.controller.js mein ye naya function add karein
 // user.controller.js
-const getMyTeamList = async (req, res) => {
+const getMyTeamList = async (req, res, next) => {
     const team = await User.find({ sponsorId: req.user.userId })
         .select('name userId isActive createdAt rank')
         .lean();
     res.json({ success: true, data: team });
 };
 
-const getTreeData = async (req, res) => {
+const getTreeData = async (req, res, next) => {
     try {
         const { userId } = req.params;
         // 🚩 .limit(3) ko bilkul hata dein taaki saare 10+ members dikhein
@@ -295,7 +241,7 @@ const getTreeData = async (req, res) => {
 
 
 
-const getDashboardStats = async (req, res) => {
+const getDashboardStats = async (req, res, next) => {
     try {
         const userId = req.user._id;
 
@@ -310,7 +256,15 @@ const getDashboardStats = async (req, res) => {
         }
 
         // Get MLM stats
-        const mlmStats = await getUserMLMStats(userId);
+        // const mlmStats = await getUserMLMStats(userId);
+
+        // ⚠️ TEMPORARILY COMMENT OUT MLM STATS IF SERVICE NOT READY
+        // const mlmStats = await getUserMLMStats(userId);
+        const mlmStats = {
+            rank: user.rank || 'Bronze',
+            totalTeam: user.totalTeam || 0,
+            activeTeam: user.activeTeam || 0
+        };
 
         // Get wallet balance
         let wallet = await Wallet.findOne({ userId: userId });
@@ -360,7 +314,7 @@ const getDashboardStats = async (req, res) => {
 };
 
 // 🎖️ Get My Rank & Progress
-const getMyRankProgress = async (req, res) => {
+const getMyRankProgress = async (req, res, next) => {
     try {
         const userId = req.user._id;
         const mlmStats = await getUserMLMStats(userId);
@@ -389,7 +343,7 @@ const getMyRankProgress = async (req, res) => {
 
 
 // 👥 Get My Team (All Levels)
-const getMyTeam = async (req, res) => {
+const getMyTeam = async (req, res, next) => {
     try {
         const userId = req.user._id;
         const user = await User.findById(userId);
@@ -426,7 +380,7 @@ const getMyTeam = async (req, res) => {
 };
 
 // 🎁 Get My Rewards
-const getMyRewards = async (req, res) => {
+const getMyRewards = async (req, res, next) => {
     try {
         const userId = req.user._id;
         const user = await User.findById(userId);
@@ -463,7 +417,6 @@ const getMyRewards = async (req, res) => {
 module.exports = {
     getMyRewards,
     getMyRankProgress,
-    registerUser,
     getMyTeam,
     getDashboardStats,
     getFullTree,

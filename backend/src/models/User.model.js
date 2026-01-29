@@ -9,7 +9,9 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true },
     mobile: { type: String },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
-
+    sponsorId: { type: String, default: "KARAN1001" }, // String format for easy display
+    uplineId: { type: String },                       // String format for tree logic
+    level: { type: Number, default: 0 },              // Level counting
     // Activation Status
     isActive: { type: Boolean, default: false },
     activatedAt: { type: Date },
@@ -20,7 +22,7 @@ const userSchema = new mongoose.Schema({
         ref: 'User'
     },
 
-    // Direct Referrals (Unlimited, but only first 3 count for income)
+    //Direct Referrals (Unlimited, but only first 3 count for income)
     directReferrals: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
@@ -131,13 +133,13 @@ const userSchema = new mongoose.Schema({
 });
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
+// userSchema.pre('save', async function () {
+//     if (!this.isModified('password')) return;
 
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-});
+//     const salt = await bcrypt.genSalt(10);
+//     this.password = await bcrypt.hash(this.password, salt);
+// });
+
 
 // Update rank based on team size
 userSchema.methods.updateRank = function () {

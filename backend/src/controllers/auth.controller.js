@@ -1,9 +1,12 @@
+const mongoose = require('mongoose');
 const crypto = require("crypto");
 const nodemailer = require('nodemailer');
 const User = require('../models/User.model');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
+// 🚩 Services Imports
+const { getNextUserId } = require("../services/counter.service");
+const { findUpline } = require("../services/matrix.service"); // 👈 Ye line miss ho gayi hai
 // ✅ UNIFIED TOKEN GENERATOR
 const generateToken = (user) => {
     return jwt.sign(
@@ -17,7 +20,7 @@ const generateToken = (user) => {
     );
 };
 
-const adminLogin = async (req, res) => {
+const adminLogin = async (req, res,) => {
     try {
         const { email, password } = req.body;
 
@@ -234,9 +237,92 @@ const resetPassword = async (req, res) => {
     }
 };
 
+
+// Register function
+const register = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const { name, email, mobile, password, sponsorId } = req.body;
+
+        // 1. Password Hashing
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // 2. Identify Upline (Matrix Logic)
+        // register function ke andar 🚩
+        const finalSponsor = sponsorId || "KARAN1001";
+
+        // 1. Check karo sponsor exist karta hai ya nahi
+        const sponsorUser = await User.findOne({ userId: finalSponsor }).session(session);
+        if (!sponsorUser) {
+            throw new Error("Invalid Sponsor ID. This ID does not exist in the network.");
+        }
+
+        // 2. CHECK: Kya is Sponsor ke pehle se 3 members hain?
+        const memberCount = await User.countDocuments({ sponsorId: finalSponsor });
+
+        if (memberCount >= 3) {
+            return res.status(400).json({
+                success: false,
+                message: `Is Referral ID (${finalSponsor}) ki limit poori ho chuki hai please apne child member ke ID use karein.. Registration blocked.`
+            });
+        }
+        // 3. User Create (Exactly like Demo 2)
+        const userArray = await User.create([{
+            name,
+            email: email.toLowerCase(),
+            mobile,
+            password: hashedPassword,
+            userId: await getNextUserId(session),
+
+            // Linking Fields
+            referredBy: sponsorUser ? sponsorUser._id : null, // Object Reference
+            sponsorId: finalSponsor,                          // String ID (KARAN3)
+            uplineId: finalSponsor,                           // Initial Upline
+
+            role: 'user',
+            isActive: false,
+            rank: "Promoter",
+            totalTeam: 0,
+            activeTeam: 0
+        }], { session });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(201).json({
+            success: true,
+            message: "Node Registered!",
+            userId: userArray[0].userId
+        });
+    } catch (err) {
+        await session.abortTransaction();
+        session.endSession();
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+
+const checkSponsorLimit = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const count = await User.countDocuments({ sponsorId: userId });
+
+        res.status(200).json({
+            success: true,
+            isFull: count >= 3,
+            currentCount: count
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     forgotPassword,
     resetPassword,
     adminLogin,
-    userLogin
+    userLogin,
+    register,
+    checkSponsorLimit
 };
